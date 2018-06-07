@@ -8,16 +8,20 @@ import (
 func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
-			"token": {
+			"name": {
 				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("HCLOUD_TOKEN", nil),
-				Description: "The API token to access the hetzner cloud.",
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("JX_CLUSTER_NAME", nil),
 			},
 			"endpoint": {
 				Type:        schema.TypeString,
-				Optional:    true,
-				DefaultFunc: schema.EnvDefaultFunc("HCLOUD_ENDPOINT", nil),
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("JX_CLUSTER_ENDPOINT", nil),
+			},
+			"certificate": {
+				Type:        schema.TypeString,
+				Required:    true,
+				DefaultFunc: schema.EnvDefaultFunc("JX_CLUSTER_CERT", nil),
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
