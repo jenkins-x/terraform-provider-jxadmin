@@ -1,5 +1,7 @@
 provider "jx" {
-
+  name = "my-jx-cluster"
+  endpoint = "https://127.0.0.1"
+  certificate = "some generated cert..."
 }
 
 resource "jx_team" "team1" {
