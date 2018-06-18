@@ -90,6 +90,12 @@ test-compile:
 	fi
 	go test -c $(TEST) $(TESTARGS)
 
+bootstrap: vendoring
+
+vendoring:
+	go get -u github.com/golang/dep/cmd/dep
+	GO15VENDOREXPERIMENT=1 dep ensure
+
 website:
 ifeq (,$(wildcard $(GOPATH)/src/$(WEBSITE_REPO)))
 	echo "$(WEBSITE_REPO) not found in your GOPATH (necessary for layouts and assets), get-ting..."

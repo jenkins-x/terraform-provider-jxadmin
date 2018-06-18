@@ -32,3 +32,11 @@
 [[constraint]]
   name = "github.com/hashicorp/terraform"
   version = "0.11.7"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/jenkins-x/jx"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.10.0"
