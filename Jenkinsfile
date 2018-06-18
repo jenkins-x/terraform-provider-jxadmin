@@ -8,7 +8,7 @@ pipeline {
                 branch 'PR-*'
             }
             steps {
-                container('jx-base') {
+                container('go') {
                     sh "make testacc"
                 }
             }
@@ -19,7 +19,7 @@ pipeline {
                 branch 'master'
             }
             steps {
-                container('jx-base') {
+                container('go') {
                     sh "make"
                 }
             }
