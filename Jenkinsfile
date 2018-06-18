@@ -9,7 +9,7 @@ pipeline {
             }
             steps {
                 container('go') {
-                    sh "make testacc"
+                    sh "make fmt testacc"
                 }
             }
         }
