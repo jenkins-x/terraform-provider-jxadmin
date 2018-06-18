@@ -8,8 +8,11 @@ pipeline {
                 branch 'PR-*'
             }
             steps {
-                container('go') {
-                    sh "make fmt testacc"
+                dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
+                    checkout scm
+                    container('go') {
+                        sh "make fmt testacc"
+                    }
                 }
             }
         }
@@ -19,8 +22,11 @@ pipeline {
                 branch 'master'
             }
             steps {
-                container('go') {
-                    sh "make"
+                dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
+                    checkout scm
+                    container('go') {
+                        sh "make"
+                    }
                 }
             }
         }
