@@ -64,6 +64,7 @@ func init() {
 		*/}
 }
 
+
 func providerConfigure(p *schema.Provider) schema.ConfigureFunc {
 	return func(d *schema.ResourceData) (interface{}, error) {
 		options := &TerraformOptions{
