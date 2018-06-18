@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label "jenkins-jx-base"
+        label "jenkins-go"
     }
     stages {
         stage('CI Build and push snapshot') {
