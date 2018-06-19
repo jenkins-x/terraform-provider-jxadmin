@@ -54,7 +54,7 @@ var (
 		This command creates a new kubernetes cluster on GKE, installing required local dependencies and provisions the
 		Jenkins X platform
 
-		You can see a demo of this command here: [http://jenkins-x.io/demos/create_cluster_gke/](http://jenkins-x.io/demos/create_cluster_gke/)
+		You can see a demo of this command here: [https://jenkins-x.io/demos/create_cluster_gke/](https://jenkins-x.io/demos/create_cluster_gke/)
 
 		Google Kubernetes Engine is a managed environment for deploying containerized applications. It brings our latest
 		innovations in developer productivity, resource efficiency, automated operations, and open source flexibility to
@@ -291,8 +291,7 @@ func (o *CreateClusterGKEOptions) createClusterGKE() error {
 
 	ns := o.InstallOptions.Flags.Namespace
 	if ns == "" {
-		f := o.Factory
-		_, ns, _ = f.CreateClient()
+		_, ns, _ = o.KubeClient()
 		if err != nil {
 			return err
 		}

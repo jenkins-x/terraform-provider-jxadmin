@@ -57,7 +57,7 @@ func (o *UninstallOptions) Run() error {
 	if err != nil {
 		return err
 	}
-	jxClient, _, err := o.Factory.CreateJXClient()
+	jxClient, _, err := o.JXClient()
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (o *UninstallOptions) Run() error {
 	}
 	envNames, err := kube.GetEnvironmentNames(jxClient, namespace)
 	if err != nil {
-		return err
+		o.warnf("Failed to find Environments. Probably not installed yet?. Error: %s\n", err)
 	}
 	for _, env := range envNames {
 		release := namespace + "-" + env
@@ -92,7 +92,7 @@ func (o *UninstallOptions) Run() error {
 		}
 		err = o.runCommand("helm", "delete", "--purge", release)
 		if err != nil {
-			return err
+			o.warnf("Failed to uninstall environment chart %s: %s\n", release, err)
 		}
 	}
 	err = o.runCommand("helm", "delete", "--purge", "jenkins-x")
@@ -104,7 +104,7 @@ func (o *UninstallOptions) Run() error {
 		return err
 	}
 
-	client, _, err := o.Factory.CreateClient()
+	client, _, err := o.KubeClient()
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@
 #   go-tests = true
 #   unused-packages = true
 
+required = ["k8s.io/client-go/kubernetes/fake"]
 
 [prune]
   go-tests = true

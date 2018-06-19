@@ -27,7 +27,7 @@ var (
 	environment_long = templates.LongDesc(`
 		Displays or changes the current environment.
 
-		For more documentation on Environments see: [http://jenkins-x.io/about/features/#environments](http://jenkins-x.io/about/features/#environments)
+		For more documentation on Environments see: [https://jenkins-x.io/about/features/#environments](https://jenkins-x.io/about/features/#environments)
 
 `)
 	environment_example = templates.Examples(`
@@ -68,17 +68,16 @@ func NewCmdEnvironment(f cmdutil.Factory, out io.Writer, errOut io.Writer) *cobr
 }
 
 func (o *EnvironmentOptions) Run() error {
-	f := o.Factory
-	kubeClient, currentNs, err := f.CreateClient()
+	kubeClient, currentNs, err := o.KubeClient()
 	if err != nil {
 		return err
 	}
-	jxClient, _, err := f.CreateJXClient()
+	jxClient, _, err := o.JXClient()
 	if err != nil {
 		return err
 	}
 
-	apisClient, err := f.CreateApiExtensionsClient()
+	apisClient, err := o.CreateApiExtensionsClient()
 	if err != nil {
 		return err
 	}

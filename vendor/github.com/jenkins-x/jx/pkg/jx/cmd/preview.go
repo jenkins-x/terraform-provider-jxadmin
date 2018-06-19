@@ -25,7 +25,7 @@ var (
 	previewLong = templates.LongDesc(`
 		Creates or updates a Preview Environment for the given Pull Request or Branch.
 
-		For more documentation on Preview Environments see: [http://jenkins-x.io/about/features/#preview-environments](http://jenkins-x.io/about/features/#preview-environments)
+		For more documentation on Preview Environments see: [https://jenkins-x.io/about/features/#preview-environments](https://jenkins-x.io/about/features/#preview-environments)
 
 `)
 
@@ -125,16 +125,15 @@ func (o *PreviewOptions) Run() error {
 			o.Name = args[0]
 		}
 	*/
-	f := o.Factory
-	jxClient, currentNs, err := f.CreateJXClient()
+	jxClient, currentNs, err := o.JXClient()
 	if err != nil {
 		return err
 	}
-	kubeClient, _, err := f.CreateClient()
+	kubeClient, _, err := o.KubeClient()
 	if err != nil {
 		return err
 	}
-	apisClient, err := f.CreateApiExtensionsClient()
+	apisClient, err := o.CreateApiExtensionsClient()
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,7 @@ func (o *PreviewOptions) Run() error {
 	err = o.defaultValues(ns, true)
 
 	// we need pull request info to include
-	authConfigSvc, err := o.Factory.CreateGitAuthConfigService()
+	authConfigSvc, err := o.CreateGitAuthConfigService()
 	if err != nil {
 		return err
 	}
@@ -424,7 +423,11 @@ func (o *PreviewOptions) Run() error {
 		return err
 	}
 
-	err = o.runCommand("helm", "upgrade", o.ReleaseName, ".", "--force", "--install", "--wait", "--namespace", o.Namespace, fmt.Sprintf("--values=%s", configFileName))
+	helmBin, err := o.TeamHelmBin()
+	if err != nil {
+		return err
+	}
+	err = o.runCommand(helmBin, "upgrade", o.ReleaseName, ".", "--force", "--install", "--wait", "--namespace", o.Namespace, fmt.Sprintf("--values=%s", configFileName))
 	if err != nil {
 		return err
 	}
@@ -434,6 +437,7 @@ func (o *PreviewOptions) Run() error {
 	for _, n := range appNames {
 		url, err = kube.FindServiceURL(kubeClient, o.Namespace, n)
 		if url != "" {
+			writePreviewURL(o, url)
 			break
 		}
 	}
@@ -611,6 +615,14 @@ func (o *PreviewOptions) defaultValues(ns string, warnMissingName bool) error {
 		o.warnf("No GitInfo could be found!")
 	}
 	return nil
+}
+
+func writePreviewURL(o *PreviewOptions, url string) {
+	previewFileName := filepath.Join(o.Dir, ".previewUrl")
+	err := ioutil.WriteFile(previewFileName, []byte(url), 0644)
+	if err != nil {
+		log.Warn("Unable to write preview file")
+	}
 }
 
 func getImageName() (string, error) {

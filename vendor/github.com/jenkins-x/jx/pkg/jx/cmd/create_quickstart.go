@@ -32,7 +32,7 @@ var (
 		This will create a new project for you from the selected template.
 		It will exclude any work-in-progress repos (containing the "WIP-" pattern)
 
-		For more documentation see: [http://jenkins-x.io/developing/create-quickstart/](http://jenkins-x.io/developing/create-quickstart/)
+		For more documentation see: [https://jenkins-x.io/developing/create-quickstart/](https://jenkins-x.io/developing/create-quickstart/)
 
 `)
 
@@ -100,7 +100,7 @@ func NewCmdCreateQuickstart(f cmdutil.Factory, out io.Writer, errOut io.Writer) 
 
 // Run implements the generic Create command
 func (o *CreateQuickstartOptions) Run() error {
-	authConfigSvc, err := o.Factory.CreateGitAuthConfigService()
+	authConfigSvc, err := o.CreateGitAuthConfigService()
 	if err != nil {
 		return err
 	}
