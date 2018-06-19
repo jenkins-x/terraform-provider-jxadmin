@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
+	"github.com/jenkins-x/jx/pkg/jx/cmd"
 )
 
 var testAccProviders map[string]terraform.ResourceProvider
@@ -24,8 +25,24 @@ func TestProvider(t *testing.T) {
 }
 
 func TestProvider_impl(t *testing.T) {
-	Provider()
+	NewTestProvider()
 }
 
 func testAccPreCheck(t *testing.T) {
+}
+
+func NewTestProvider() terraform.ResourceProvider {
+	p := createProvider()
+	p.ConfigureFunc = testProviderConfigure(p)
+	return p
+}
+
+func testProviderConfigure(p *schema.Provider) schema.ConfigureFunc {
+	return func(d *schema.ResourceData) (interface{}, error) {
+		options := &TerraformOptions{
+			CommonOptions: cmd.CommonOptions{},
+		}
+		cmd.ConfigureTestOptions(&options.CommonOptions)
+		return options, nil
+	}
 }

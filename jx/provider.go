@@ -11,9 +11,13 @@ import (
 
 // Provider returns a terraform.ResourceProvider.
 func Provider() terraform.ResourceProvider {
-	var p *schema.Provider
-	// The actual provider
-	p = &schema.Provider{
+	p := createProvider()
+	p.ConfigureFunc = providerConfigure(p)
+	return p
+}
+
+func createProvider() *schema.Provider {
+	p := &schema.Provider{
 		Schema: map[string]*schema.Schema{},
 		/*
 			// TODO
@@ -46,9 +50,6 @@ func Provider() terraform.ResourceProvider {
 			"jx_environment": dataSourceJXEnvironment(),
 		},
 	}
-
-	p.ConfigureFunc = providerConfigure(p)
-
 	return p
 }
 

@@ -100,7 +100,7 @@ func loadEnvironmentResource(d *schema.ResourceData, ns string, env *v1.Environm
 	d.Set("git_ref", spec.Source.Ref)
 }
 
-func getJXEnvironmentByName(jxClient *versioned.Clientset, ns string, name string) (*v1.Environment, error) {
+func getJXEnvironmentByName(jxClient versioned.Interface, ns string, name string) (*v1.Environment, error) {
 	env, err := jxClient.JenkinsV1().Environments(ns).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("Could not find Environment in namespace %s with name: %s: %s", ns, name, err)

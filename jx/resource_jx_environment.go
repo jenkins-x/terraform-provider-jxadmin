@@ -165,7 +165,7 @@ func resourceEnvironmentDelete(d *schema.ResourceData, meta interface{}) error {
 	return client.JenkinsV1().Environments(ns).Delete(name, &metav1.DeleteOptions{})
 }
 
-func getEnvironment(d *schema.ResourceData, client *versioned.Clientset, ns string) (*v1.Environment, error) {
+func getEnvironment(d *schema.ResourceData, client versioned.Interface, ns string) (*v1.Environment, error) {
 	namespace, name := toNamespaceAndName(d.Id(), ns)
 	env, err := client.JenkinsV1().Environments(namespace).Get(name, metav1.GetOptions{})
 	return env, err
