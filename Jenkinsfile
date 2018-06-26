@@ -11,7 +11,6 @@ pipeline {
                 dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
                     checkout scm
                     container('go') {
-                        input "Paused"
                         sh "make fmt testacc"
                     }
                 }

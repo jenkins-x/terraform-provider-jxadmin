@@ -59,10 +59,10 @@ _output/terraform-provider-jx_%.zip: bin/%/terraform-provider-jx
 test: fmtcheck
 	go test -i $(TEST) || exit 1
 	echo $(TEST) | \
-		xargs -t -n4 go test $(TESTARGS) -timeout=30s -parallel=4
+		xargs -t -n4 go test $(TESTARGS) -timeout=200s -parallel=4
 
 testacc: fmtcheck
-	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 30m
+	TF_ACC=1 go test $(TEST) -v $(TESTARGS) -timeout 100m
 
 vet:
 	@echo "go vet ."
