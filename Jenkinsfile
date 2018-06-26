@@ -11,7 +11,10 @@ pipeline {
                 dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
                     checkout scm
                     container('go') {
-                        sh "make fmt testacc"
+                        sh "make clean fmt build"
+
+                        echo "Now running tests..."
+                        sh "make testacc"
                     }
                 }
             }
