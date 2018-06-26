@@ -24,6 +24,7 @@
 #   go-tests = true
 #   unused-packages = true
 
+required = ["k8s.io/client-go/kubernetes/fake"]
 
 [prune]
   go-tests = true
@@ -32,3 +33,11 @@
 [[constraint]]
   name = "github.com/hashicorp/terraform"
   version = "0.11.7"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/jenkins-x/jx"
+
+[[constraint]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.10.0"
