@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/Azure/draft/pkg/draft/draftpath"
 	"github.com/jenkins-x/draft-repo/pkg/draft/pack"
 	"github.com/jenkins-x/golang-jenkins"
@@ -16,10 +18,10 @@ import (
 	jxdraft "github.com/jenkins-x/jx/pkg/draft"
 	"github.com/jenkins-x/jx/pkg/gits"
 	"github.com/jenkins-x/jx/pkg/jenkins"
-	"github.com/jenkins-x/jx/pkg/jx/cmd/log"
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/util"
 	"github.com/spf13/cobra"
 	"gopkg.in/AlecAivazis/survey.v1"
@@ -183,9 +185,9 @@ func (o *ImportOptions) Run() error {
 			log.Error(err.Error())
 			return err
 		}
-		o.Printf("Available draft packs:\n")
+		log.Infoln("Available draft packs:")
 		for i := 0; i < len(packs); i++ {
-			o.Printf(packs[i] + "\n")
+			log.Infof(packs[i] + "\n")
 		}
 		return nil
 	}
@@ -241,7 +243,7 @@ func (o *ImportOptions) Run() error {
 		}
 		if userAuth.IsInvalid() {
 			f := func(username string) error {
-				gits.PrintCreateRepositoryGenerateAccessToken(server, username, o.Out)
+				o.Git().PrintCreateRepositoryGenerateAccessToken(server, username, o.Out)
 				return nil
 			}
 			err = config.EditUserAuth(server.Label(), userAuth, userAuth.Username, true, o.BatchMode, f)
@@ -270,7 +272,7 @@ func (o *ImportOptions) Run() error {
 
 		o.GitServer = server
 		o.GitUserAuth = userAuth
-		o.GitProvider, err = gits.CreateProvider(server, userAuth)
+		o.GitProvider, err = gits.CreateProvider(server, userAuth, o.Git())
 		if err != nil {
 			return err
 		}
@@ -344,7 +346,7 @@ func (o *ImportOptions) Run() error {
 		}
 	} else {
 		if shouldClone {
-			err = gits.GitPush(o.Dir)
+			err = o.Git().Push(o.Dir)
 			if err != nil {
 				return err
 			}
@@ -352,7 +354,7 @@ func (o *ImportOptions) Run() error {
 	}
 
 	if o.DryRun {
-		o.Printf("dry-run so skipping import to Jenkins X\n")
+		log.Infoln("dry-run so skipping import to Jenkins X")
 		return nil
 	}
 
@@ -370,7 +372,7 @@ func (o *ImportOptions) ImportProjectsFromGitHub() error {
 		return err
 	}
 
-	o.Printf("Selected repositories\n")
+	log.Infoln("Selected repositories")
 	for _, r := range repos {
 		o2 := ImportOptions{
 			CommonOptions:           o.CommonOptions,
@@ -383,7 +385,7 @@ func (o *ImportOptions) ImportProjectsFromGitHub() error {
 			DisableJenkinsfileCheck: o.DisableJenkinsfileCheck,
 			DisableDraft:            o.DisableDraft,
 		}
-		o.Printf("Importing repository %s\n", util.ColorInfo(r.Name))
+		log.Infof("Importing repository %s\n", util.ColorInfo(r.Name))
 		err = o2.Run()
 		if err != nil {
 			return err
@@ -500,20 +502,20 @@ func (o *ImportOptions) DraftCreate() error {
 	err = pack.CreateFrom(dir, lpack)
 	if err != nil {
 		// lets ignore draft errors as sometimes it can't find a pack - e.g. for environments
-		o.warnf("Failed to run draft create in %s due to %s", dir, err)
+		log.Warnf("Failed to run draft create in %s due to %s", dir, err)
 	}
 
 	if jenknisfileBackup != "" {
 		// if there's no Jenkinsfile created then rename it back again!
 		jenkinsfileExists, err = util.FileExists(jenkinsfile)
 		if err != nil {
-			o.warnf("Failed to check for Jenkinsfile %s", err)
+			log.Warnf("Failed to check for Jenkinsfile %s", err)
 		} else {
 			if jenkinsfileExists {
 				if !o.InitialisedGit {
 					err = os.Remove(jenknisfileBackup)
 					if err != nil {
-						o.warnf("Failed to remove Jenkinsfile backup %s", err)
+						log.Warnf("Failed to remove Jenkinsfile backup %s", err)
 					}
 				}
 			} else {
@@ -555,11 +557,11 @@ func (o *ImportOptions) DraftCreate() error {
 		return err
 	}
 
-	err = gits.GitAdd(dir, "*")
+	err = o.Git().Add(dir, "*")
 	if err != nil {
 		return err
 	}
-	err = gits.GitCommitIfChanges(dir, "Draft create")
+	err = o.Git().CommitIfChanges(dir, "Draft create")
 	if err != nil {
 		return err
 	}
@@ -578,7 +580,7 @@ func (o *ImportOptions) getCurrentUser() string {
 		currentUser = o.Organisation
 	}
 	if currentUser == "" {
-		o.warnf("No username defined for the current git server!")
+		log.Warn("No username defined for the current git server!")
 		currentUser = o.DefaultOwner
 	}
 	return currentUser
@@ -607,7 +609,8 @@ func (o *ImportOptions) CreateNewRemoteRepository() error {
 	if o.Organisation != "" {
 		o.GitRepositoryOptions.Owner = o.Organisation
 	}
-	details, err := gits.PickNewGitRepository(o.Out, o.BatchMode, authConfigSvc, defaultRepoName, &o.GitRepositoryOptions, o.GitServer, o.GitUserAuth)
+	details, err := gits.PickNewGitRepository(o.Out, o.BatchMode, authConfigSvc, defaultRepoName, &o.GitRepositoryOptions,
+		o.GitServer, o.GitUserAuth, o.Git())
 	if err != nil {
 		return err
 	}
@@ -618,19 +621,19 @@ func (o *ImportOptions) CreateNewRemoteRepository() error {
 	o.GitProvider = details.GitProvider
 
 	o.RepoURL = repo.CloneURL
-	pushGitURL, err := gits.GitCreatePushURL(repo.CloneURL, details.User)
+	pushGitURL, err := o.Git().CreatePushURL(repo.CloneURL, details.User)
 	if err != nil {
 		return err
 	}
-	err = gits.GitCmd(dir, "remote", "add", "origin", pushGitURL)
+	err = o.Git().AddRemote(dir, "origin", pushGitURL)
 	if err != nil {
 		return err
 	}
-	err = gits.GitCmd(dir, "push", "-u", "origin", "master")
+	err = o.Git().PushMaster(dir)
 	if err != nil {
 		return err
 	}
-	o.Printf("Pushed git repository to %s\n\n", util.ColorInfo(repo.HTMLURL))
+	log.Infof("Pushed git repository to %s\n\n", util.ColorInfo(repo.HTMLURL))
 	return nil
 }
 
@@ -651,11 +654,11 @@ func (o *ImportOptions) CloneRepository() error {
 	}
 	cloneDir, err := util.CreateUniqueDirectory(o.Dir, gitInfo.Name, util.MaximumNewDirectoryAttempts)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to create unique directory for '%s'", o.Dir)
 	}
-	err = gits.GitClone(url, cloneDir)
+	err = o.Git().Clone(url, cloneDir)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "failed to clone in directory '%s'", cloneDir)
 	}
 	o.Dir = cloneDir
 	return nil
@@ -664,7 +667,7 @@ func (o *ImportOptions) CloneRepository() error {
 // DiscoverGit checks if there is a git clone or prompts the user to import it
 func (o *ImportOptions) DiscoverGit() error {
 	if !o.DisableDotGitSearch {
-		root, gitConf, err := gits.FindGitConfigDir(o.Dir)
+		root, gitConf, err := o.Git().FindGitConfigDir(o.Dir)
 		if err != nil {
 			return err
 		}
@@ -682,7 +685,7 @@ func (o *ImportOptions) DiscoverGit() error {
 
 	// lets prompt the user to initialise the git repository
 	if !o.BatchMode {
-		o.Printf("The directory %s is not yet using git\n", util.ColorInfo(dir))
+		log.Infof("The directory %s is not yet using git\n", util.ColorInfo(dir))
 		flag := false
 		prompt := &survey.Confirm{
 			Message: "Would you like to initialise git now?",
@@ -697,7 +700,7 @@ func (o *ImportOptions) DiscoverGit() error {
 		}
 	}
 	o.InitialisedGit = true
-	err := gits.GitInit(dir)
+	err := o.Git().Init(dir)
 	if err != nil {
 		return err
 	}
@@ -706,16 +709,16 @@ func (o *ImportOptions) DiscoverGit() error {
 	if err != nil {
 		return err
 	}
-	err = gits.GitAdd(dir, ".gitignore")
+	err = o.Git().Add(dir, ".gitignore")
 	if err != nil {
 		return err
 	}
-	err = gits.GitAdd(dir, "*")
+	err = o.Git().Add(dir, "*")
 	if err != nil {
 		return err
 	}
 
-	err = gits.GitStatus(dir)
+	err = o.Git().Status(dir)
 	if err != nil {
 		return err
 	}
@@ -735,11 +738,11 @@ func (o *ImportOptions) DiscoverGit() error {
 			}
 		}
 	}
-	err = gits.GitCommitIfChanges(dir, message)
+	err = o.Git().CommitIfChanges(dir, message)
 	if err != nil {
 		return err
 	}
-	o.Printf("\nGit repository created\n")
+	log.Infof("\nGit repository created\n")
 	return nil
 }
 
@@ -781,9 +784,9 @@ func (o *ImportOptions) DiscoverRemoteGitURL() error {
 	if len(remotes) == 0 {
 		return nil
 	}
-	url := gits.GetRemoteUrl(cfg, "origin")
+	url := o.Git().GetRemoteUrl(cfg, "origin")
 	if url == "" {
-		url = gits.GetRemoteUrl(cfg, "upstream")
+		url = o.Git().GetRemoteUrl(cfg, "upstream")
 		if url == "" {
 			url, err = o.pickRemoteURL(cfg)
 			if err != nil {
@@ -828,8 +831,8 @@ func (o *ImportOptions) DoImport() error {
 
 func (o *ImportOptions) replacePlaceholders(gitServerName, gitOrg string) error {
 	gitOrg = kube.ToValidName(strings.ToLower(gitOrg))
-	o.Printf("replacing placeholders in directory %s\n", o.Dir)
-	o.Printf("app name: %s, git server: %s, org: %s\n", o.AppName, gitServerName, gitOrg)
+	log.Infof("replacing placeholders in directory %s\n", o.Dir)
+	log.Infof("app name: %s, git server: %s, org: %s\n", o.AppName, gitServerName, gitOrg)
 
 	if err := filepath.Walk(o.Dir, func(f string, fi os.FileInfo, err error) error {
 		if fi.IsDir() && (fi.Name() == ".git" || fi.Name() == "node_modules" || fi.Name() == "vendor" || fi.Name() == "target") {
@@ -981,7 +984,7 @@ func (o *ImportOptions) fixDockerIgnoreFile() error {
 				if err != nil {
 					return err
 				}
-				o.Printf("Removed old `Dockerfile` entry from %s\n", util.ColorInfo(filename))
+				log.Infof("Removed old `Dockerfile` entry from %s\n", util.ColorInfo(filename))
 			}
 		}
 	}
@@ -999,17 +1002,22 @@ func (o *ImportOptions) fixMaven() error {
 		return err
 	}
 	if exists {
+		err = o.installMavenIfRequired()
+		if err != nil {
+			return err
+		}
+
 		// lets ensure the mvn plugins are ok
 		out, err := o.getCommandOutput(dir, "mvn", "io.jenkins.updatebot:updatebot-maven-plugin:RELEASE:plugin", "-Dartifact=maven-deploy-plugin", "-Dversion="+minimumMavenDeployVersion)
 		if err != nil {
 			return fmt.Errorf("Failed to update maven plugin: %s output: %s", err, out)
 		}
 		if !o.DryRun {
-			err = gits.GitAdd(dir, "pom.xml")
+			err = o.Git().Add(dir, "pom.xml")
 			if err != nil {
 				return err
 			}
-			err = gits.GitCommitIfChanges(dir, "fix:(plugins) use a better version of maven deploy plugin")
+			err = o.Git().CommitIfChanges(dir, "fix:(plugins) use a better version of maven deploy plugin")
 			if err != nil {
 				return err
 			}
@@ -1021,11 +1029,11 @@ func (o *ImportOptions) fixMaven() error {
 			return fmt.Errorf("Failed to update chart: %s output: %s", err, out)
 		}
 		if !o.DryRun {
-			err = gits.GitAdd(dir, "charts")
+			err = o.Git().Add(dir, "charts")
 			if err != nil {
 				return err
 			}
-			err = gits.GitCommitIfChanges(dir, "fix:(chart) fix up the probe path")
+			err = o.Git().CommitIfChanges(dir, "fix:(chart) fix up the probe path")
 			if err != nil {
 				return err
 			}

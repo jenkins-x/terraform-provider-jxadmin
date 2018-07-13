@@ -10,6 +10,7 @@ import (
 
 	"github.com/jenkins-x/jx/pkg/helm"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/util"
 )
 
@@ -81,10 +82,10 @@ func (o *CommonOptions) addHelmBinaryRepoIfMissing(helmBinary string, helmUrl st
 		return err
 	}
 	if missing {
-		o.Printf("Adding missing helm repo: %s %s\n", util.ColorInfo(repoName), util.ColorInfo(helmUrl))
+		log.Infof("Adding missing helm repo: %s %s\n", util.ColorInfo(repoName), util.ColorInfo(helmUrl))
 		err = o.runCommandVerbose(helmBinary, "repo", "add", repoName, helmUrl)
 		if err == nil {
-			o.Printf("Succesfully added Helm repository %s.\n", repoName)
+			log.Infof("Succesfully added Helm repository %s.\n", repoName)
 		}
 		return err
 	}
@@ -98,13 +99,17 @@ func (o *CommonOptions) installChart(releaseName string, chart string, version s
 
 // installChartAt installs the given chart
 func (o *CommonOptions) installChartAt(dir string, releaseName string, chart string, version string, ns string, helmUpdate bool, setValues []string) error {
+	helmBinary, err := o.TeamHelmBin()
+	if err != nil {
+		return err
+	}
 	if helmUpdate {
-		o.Printf("Updating Helm repository...\n")
-		err := o.runCommand("helm", "repo", "update")
+		log.Infoln("Updating Helm repository...")
+		err = o.runCommand(helmBinary, "repo", "update")
 		if err != nil {
 			return err
 		}
-		o.Printf("Helm repository update done.\n")
+		log.Infoln("Helm repository update done.")
 	}
 	timeout := fmt.Sprintf("--timeout=%s", defaultInstallTimeout)
 	args := []string{"upgrade", "--install", timeout}
@@ -122,20 +127,24 @@ func (o *CommonOptions) installChartAt(dir string, releaseName string, chart str
 	}
 	for _, value := range setValues {
 		args = append(args, "--set", value)
-		o.Printf("Set chart value: --set %s\n", util.ColorInfo(value))
+		log.Infof("Set chart value: --set %s\n", util.ColorInfo(value))
 	}
 	args = append(args, releaseName, chart)
-	return o.runCommandVerboseAt(dir, "helm", args...)
+	return o.runCommandVerboseAt(dir, helmBinary, args...)
 }
 
 // deleteChart deletes the given chart
 func (o *CommonOptions) deleteChart(releaseName string, purge bool) error {
+	helmBinary, err := o.TeamHelmBin()
+	if err != nil {
+		return err
+	}
 	args := []string{"delete"}
 	if purge {
 		args = append(args, "--purge")
 	}
 	args = append(args, releaseName)
-	return o.runCommandVerbose("helm", args...)
+	return o.runCommandVerbose(helmBinary, args...)
 }
 
 func (*CommonOptions) FindHelmChart() (string, error) {
@@ -274,7 +283,7 @@ func (o *CommonOptions) helmInit(dir string) (string, error) {
 	if err != nil {
 		return helmBinary, err
 	}
-	o.Printf("Using the helm binary: %s for generating the chart release\n", util.ColorInfo(helmBinary))
+	log.Infof("Using the helm binary: %s for generating the chart release\n", util.ColorInfo(helmBinary))
 
 	err = o.runCommandVerboseAt(dir, helmBinary, "version")
 	if err != nil {
@@ -306,7 +315,7 @@ func (o *CommonOptions) helmInitDependencyBuild(dir string, chartRepos map[strin
 	if err != nil {
 		return helmBinary, err
 	}
-	o.Printf("Using the helm binary: %s for generating the chart release\n", util.ColorInfo(helmBinary))
+	log.Infof("Using the helm binary: %s for generating the chart release\n", util.ColorInfo(helmBinary))
 
 	err = o.runCommandVerboseAt(dir, helmBinary, "version")
 	if err != nil {
@@ -329,7 +338,7 @@ func (o *CommonOptions) helmInitDependencyBuild(dir string, chartRepos map[strin
 	// TODO due to this issue: https://github.com/kubernetes/helm/issues/4230
 	// lets stick with helm2 for this step
 	//
-	//err = o.runCommandVerboseAt(dir, helmBinary, "dependency", "build", dir)
+	//err = o.runCommandVerboseAt(dir, HelmBinary, "dependency", "build", dir)
 	err = o.runCommandVerboseAt(dir, "helm", "dependency", "build", dir)
 	if err != nil {
 		return helmBinary, err
@@ -345,7 +354,7 @@ func (o *CommonOptions) helmInitDependencyBuild(dir string, chartRepos map[strin
 func (o *CommonOptions) defaultReleaseCharts() map[string]string {
 	return map[string]string{
 		"releases":  o.releaseChartMuseumUrl(),
-		"jenkins-x": "https://chartmuseum.build.cd.jenkins-x.io",
+		"jenkins-x": DEFAULT_CHARTMUSEUM_URL,
 	}
 }
 
@@ -353,7 +362,7 @@ func (o *CommonOptions) releaseChartMuseumUrl() string {
 	chartRepo := os.Getenv("CHART_REPOSITORY")
 	if chartRepo == "" {
 		chartRepo = defaultChartRepo
-		o.warnf("No $CHART_REPOSITORY defined so using the default value of: %s\n", defaultChartRepo)
+		log.Warnf("No $CHART_REPOSITORY defined so using the default value of: %s\n", defaultChartRepo)
 	}
 	return chartRepo
 }

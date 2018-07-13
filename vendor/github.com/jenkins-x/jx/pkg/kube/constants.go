@@ -64,9 +64,6 @@ const (
 	// ConfigMapExposecontroller the name of the ConfigMap with the Exposecontroller configuration
 	ConfigMapExposecontroller = "exposecontroller"
 
-	// ConfigMapJenkinsXGitKinds the name of the ConfigMap in the development namespace that maps kinds to URLs
-	ConfigMapJenkinsXGitKinds = "jenkins-x-git-kinds"
-
 	// ConfigMapJenkinsX the name of the ConfigMap with the Jenkins configuration
 	ConfigMapJenkinsX = "jenkins"
 
@@ -80,6 +77,8 @@ const (
 	DeploymentExposecontrollerService = "exposecontroller-service"
 
 	DefaultEnvironmentGitRepoURL = "https://github.com/jenkins-x/default-environment-charts.git"
+
+	DefaultOrganisationGitRepoURL = "https://github.com/jenkins-x/default-organisation.git"
 
 	// LabelKind to indicate the kind of auth, such as Git or Issue
 	LabelKind = "jenkins.io/kind"
@@ -134,6 +133,15 @@ const (
 
 	// ValueCredentialTypeUsernamePassword for user password credential secrets
 	ValueCredentialTypeUsernamePassword = "usernamePassword"
+
+	// LabelTeam indicates the team name an environment belongs to
+	LabelTeam = "team"
+
+	// LabelEnvironment indicates the name of the environment
+	LabelEnvironment = "env"
+
+	// LabelValueDevEnvironment is the value of the LabelTeam label for Development environments (system namespace)
+	LabelValueDevEnvironment = "dev"
 
 	// AnnotationURL indicates a service/server's URL
 	AnnotationURL = "jenkins.io/url"

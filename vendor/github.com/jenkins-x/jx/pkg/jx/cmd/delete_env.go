@@ -9,6 +9,7 @@ import (
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/util"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,11 +115,11 @@ func (o *DeleteEnvOptions) Run() error {
 }
 
 func (o *DeleteEnvOptions) deleteEnviroment(jxClient versioned.Interface, ns string, name string, envMap map[string]*v1.Environment) error {
-	//err := jxClient.JenkinsV1().Environments(ns).Delete(name, &metav1.DeleteOptions{})
-	//if err != nil {
-	//	return err
-	//}
-	//o.Printf("Deleted environment %s\n", util.ColorInfo(name))
+	err := jxClient.JenkinsV1().Environments(ns).Delete(name, &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	log.Infof("Deleted environment %s\n", util.ColorInfo(name))
 
 	env := envMap[name]
 	envNs := env.Spec.Namespace
@@ -127,9 +128,9 @@ func (o *DeleteEnvOptions) deleteEnviroment(jxClient versioned.Interface, ns str
 	}
 	kind := env.Spec.Kind
 	if o.DeleteNamespace || !kind.IsPermanent() {
-		return o.kubeClient.CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{})
+		return o.kubeClient.CoreV1().Namespaces().Delete(envNs, &metav1.DeleteOptions{})
 	}
-	o.Printf("To delete the associated namespace %s for environment %s then please run this command\n", name, envNs)
-	o.Printf(util.ColorInfo("  kubectl delete namespace %s\n"), envNs)
+	log.Infof("To delete the associated namespace %s for environment %s then please run this command\n", name, envNs)
+	log.Infof(util.ColorInfo("  kubectl delete namespace %s\n"), envNs)
 	return nil
 }

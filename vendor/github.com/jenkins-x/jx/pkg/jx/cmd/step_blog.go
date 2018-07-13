@@ -20,6 +20,7 @@ import (
 	"github.com/jenkins-x/jx/pkg/issues"
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/reports"
 	"github.com/jenkins-x/jx/pkg/util"
 	"github.com/spf13/cobra"
@@ -100,8 +101,8 @@ func NewCmdStepBlog(f cmdutil.Factory, out io.Writer, errOut io.Writer) *cobra.C
 	options.addCommonFlags(cmd)
 
 	cmd.Flags().StringVarP(&options.Dir, "dir", "d", "", "The directory to query to find the projects .git directory")
-	cmd.Flags().StringVarP(&options.FromDate, "from-date", "f", "", "The date to create the charts from. Defaults to a week before the to date. Should be a format: "+gits.DateFormat)
-	cmd.Flags().StringVarP(&options.ToDate, "to-date", "t", "", "The date to query up to. Defaults to now. Should be a format: "+gits.DateFormat)
+	cmd.Flags().StringVarP(&options.FromDate, "from-date", "f", "", "The date to create the charts from. Defaults to a week before the to date. Should be a format: "+util.DateFormat)
+	cmd.Flags().StringVarP(&options.ToDate, "to-date", "t", "", "The date to query up to. Defaults to now. Should be a format: "+util.DateFormat)
 	cmd.Flags().StringVarP(&options.BlogOutputDir, "blog-dir", "", "", "The Hugo-style blog source code to generate the charts into")
 	cmd.Flags().StringVarP(&options.BlogName, "blog-name", "n", "", "The blog name")
 	cmd.Flags().BoolVarP(&options.CombineMinorReleases, "combine-minor", "c", true, "If enabled lets combine minor releases together to simplify the charts")
@@ -168,7 +169,7 @@ func (o *StepBlogOptions) downloadsReport(provider gits.GitProvider, owner strin
 		return err
 	}
 	if len(releases) == 0 {
-		o.warnf("No releases found for %s/%s/n", owner, repo)
+		log.Warnf("No releases found for %s/%s/n", owner, repo)
 		return nil
 	}
 	if o.CombineMinorReleases {
@@ -183,7 +184,7 @@ func (o *StepBlogOptions) downloadsReport(provider gits.GitProvider, owner strin
 			issuesClosed := len(spec.Issues)
 			queryClosedIssueCount, err := o.queryClosedIssues()
 			if err != nil {
-				o.warnf("Failed to query closed issues: %s\n", err)
+				log.Warnf("Failed to query closed issues: %s\n", err)
 			}
 			if queryClosedIssueCount > issuesClosed {
 				issuesClosed = queryClosedIssueCount
@@ -195,7 +196,7 @@ func (o *StepBlogOptions) downloadsReport(provider gits.GitProvider, owner strin
 
 		repo, err := provider.GetRepository(owner, repo)
 		if err != nil {
-			o.warnf("Failed to load the repository %s", err)
+			log.Warnf("Failed to load the repository %s", err)
 		} else {
 			history.StarsMetrics(o.ToDate, repo.Stars)
 		}
@@ -222,7 +223,7 @@ func (o *StepBlogOptions) createBarReport(name string, legends ...string) report
 		jsDir := filepath.Join(outDir, "static", "news", blogName)
 		err := os.MkdirAll(jsDir, DefaultWritePermissions)
 		if err != nil {
-			o.warnf("Could not create directory %s: %s", jsDir, err)
+			log.Warnf("Could not create directory %s: %s", jsDir, err)
 		}
 		jsFileName := filepath.Join(jsDir, name+".js")
 		jsLinkURI := filepath.Join("/news", blogName, name+".js")
@@ -275,11 +276,11 @@ func (o *StepBlogOptions) generateChangelog() error {
 	if previousDate == "" {
 		// default to 4 weeks ago
 		t := now.Add(-time.Hour * 24 * 7 * 4)
-		previousDate = gits.FormatDate(t)
+		previousDate = util.FormatDate(t)
 		o.FromDate = previousDate
 	}
 	if o.ToDate == "" {
-		o.ToDate = gits.FormatDate(now)
+		o.ToDate = util.FormatDate(now)
 	}
 	options := &StepChangelogOptions{
 		StepOptions: o.StepOptions,
@@ -399,7 +400,7 @@ func (o *StepBlogOptions) report() (*reports.ProjectHistory, *reports.ProjectRep
 		toDate := o.ToDate
 		report := history.FindReport(toDate)
 		if report == nil {
-			o.warnf("No report for date %s\n", toDate)
+			log.Warnf("No report for date %s\n", toDate)
 		}
 		return history, report
 	}
@@ -435,7 +436,7 @@ func (o *StepBlogOptions) createNewCommitters() string {
 			o.addContributors(issue.Assignees)
 		}
 	} else {
-		o.warnf("No Release!\n")
+		log.Warnf("No Release!\n")
 	}
 	history, _ := o.report()
 	if history != nil {
@@ -571,7 +572,7 @@ func (o *StepBlogOptions) loadChatMetrics(chatConfig *config.ChatConfig) error {
 		} else {
 			metrics, err := o.getChannelMetrics(chatConfig, devChannel)
 			if err != nil {
-				o.warnf("Failed to get chat metrics for channel %s: %s\n", devChannel, err)
+				log.Warnf("Failed to get chat metrics for channel %s: %s\n", devChannel, err)
 				return nil
 			}
 			count = metrics.MemberCount
@@ -587,7 +588,7 @@ func (o *StepBlogOptions) loadChatMetrics(chatConfig *config.ChatConfig) error {
 		} else {
 			metrics, err := o.getChannelMetrics(chatConfig, userChannel)
 			if err != nil {
-				o.warnf("Failed to get chat metrics for channel %s: %s\n", userChannel, err)
+				log.Warnf("Failed to get chat metrics for channel %s: %s\n", userChannel, err)
 				return nil
 			}
 			count = metrics.MemberCount
@@ -611,7 +612,7 @@ func (o *StepBlogOptions) queryClosedIssues() (int, error) {
 	if fromDate == "" {
 		return 0, fmt.Errorf("No from date specified!")
 	}
-	t, err := gits.ParseDate(fromDate)
+	t, err := util.ParseDate(fromDate)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to parse from date: %s: %s", fromDate, err)
 	}

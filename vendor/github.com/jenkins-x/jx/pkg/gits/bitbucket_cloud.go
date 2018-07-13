@@ -11,7 +11,7 @@ import (
 	"github.com/jenkins-x/jx/pkg/util"
 
 	"github.com/jenkins-x/jx/pkg/auth"
-	"github.com/jenkins-x/jx/pkg/jx/cmd/log"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/wbrefvem/go-bitbucket"
 )
 
@@ -23,6 +23,7 @@ type BitbucketCloudProvider struct {
 
 	Server auth.AuthServer
 	User   auth.UserAuth
+	Git    Gitter
 }
 
 var stateMap = map[string]string{
@@ -32,7 +33,7 @@ var stateMap = map[string]string{
 	"STOPPED":    "stopped",
 }
 
-func NewBitbucketCloudProvider(server *auth.AuthServer, user *auth.UserAuth) (GitProvider, error) {
+func NewBitbucketCloudProvider(server *auth.AuthServer, user *auth.UserAuth, git Gitter) (GitProvider, error) {
 	ctx := context.Background()
 
 	basicAuth := bitbucket.BasicAuth{
@@ -46,6 +47,7 @@ func NewBitbucketCloudProvider(server *auth.AuthServer, user *auth.UserAuth) (Gi
 		User:     *user,
 		Username: user.Username,
 		Context:  basicAuthContext,
+		Git:      git,
 	}
 
 	cfg := bitbucket.NewConfiguration()
@@ -141,6 +143,7 @@ func (b *BitbucketCloudProvider) CreateRepository(
 	options := map[string]interface{}{}
 	options["body"] = bitbucket.Repository{
 		IsPrivate: private,
+		Scm: "git",
 	}
 
 	result, _, err := b.Client.RepositoriesApi.RepositoriesUsernameRepoSlugPost(
@@ -778,12 +781,12 @@ func (b *BitbucketCloudProvider) CreateIssue(owner string, repo string, issue *G
 }
 
 func (b *BitbucketCloudProvider) AddPRComment(pr *GitPullRequest, comment string) error {
-	fmt.Println("WARNING: Bitbucket Cloud doesn't support adding PR comments via the REST API")
+	log.Warn("Bitbucket Cloud doesn't support adding PR comments via the REST API")
 	return nil
 }
 
 func (b *BitbucketCloudProvider) CreateIssueComment(owner string, repo string, number int, comment string) error {
-	fmt.Println("WARNING: Bitbucket Cloud doesn't support adding issue comments viea the REST API")
+	log.Warn("Bitbucket Cloud doesn't support adding issue comments viea the REST API")
 	return nil
 }
 
@@ -848,13 +851,13 @@ func (p *BitbucketCloudProvider) UserInfo(username string) *GitUser {
 }
 
 func (b *BitbucketCloudProvider) UpdateRelease(owner string, repo string, tag string, releaseInfo *GitRelease) error {
-	fmt.Println("Bitbucket Cloud doesn't support releases")
+	log.Warn("Bitbucket Cloud doesn't support releases")
 	return nil
 }
 
 func (p *BitbucketCloudProvider) ListReleases(org string, name string) ([]*GitRelease, error) {
 	answer := []*GitRelease{}
-	fmt.Println("Bitbucket Cloud doesn't support releases")
+	log.Warn("Bitbucket Cloud doesn't support releases")
 	return answer, nil
 }
 

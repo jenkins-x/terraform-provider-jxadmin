@@ -7,11 +7,11 @@ import (
 
 	"fmt"
 
-	"github.com/jenkins-x/jx/pkg/jx/cmd/log"
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	"github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"gopkg.in/AlecAivazis/survey.v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -82,20 +82,24 @@ func (o *UninstallOptions) Run() error {
 	}
 	envNames, err := kube.GetEnvironmentNames(jxClient, namespace)
 	if err != nil {
-		o.warnf("Failed to find Environments. Probably not installed yet?. Error: %s\n", err)
+		log.Warnf("Failed to find Environments. Probably not installed yet?. Error: %s\n", err)
+	}
+	helmBinary, err := o.TeamHelmBin()
+	if err != nil {
+		return err
 	}
 	for _, env := range envNames {
 		release := namespace + "-" + env
-		err := o.runCommandQuietly("helm", "status", release)
+		err := o.runCommandQuietly(helmBinary, "status", release)
 		if err != nil {
 			continue
 		}
-		err = o.runCommand("helm", "delete", "--purge", release)
+		err = o.runCommand(helmBinary, "delete", "--purge", release)
 		if err != nil {
-			o.warnf("Failed to uninstall environment chart %s: %s\n", release, err)
+			log.Warnf("Failed to uninstall environment chart %s: %s\n", release, err)
 		}
 	}
-	err = o.runCommand("helm", "delete", "--purge", "jenkins-x")
+	err = o.runCommand(helmBinary, "delete", "--purge", "jenkins-x")
 	if err != nil {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -154,7 +155,8 @@ func (o *EditEnvOptions) Run() error {
 		return err
 	}
 	o.Options.Spec.PromotionStrategy = v1.PromotionStrategyType(o.PromotionStrategy)
-	gitProvider, err := kube.CreateEnvironmentSurvey(o.Out, o.BatchMode, authConfigSvc, devEnv, env, &o.Options, o.ForkEnvironmentGitRepo, ns, jxClient, kubeClient, envDir, &o.GitRepositoryOptions, o.HelmValuesConfig, o.Prefix)
+	gitProvider, err := kube.CreateEnvironmentSurvey(o.Out, o.BatchMode, authConfigSvc, devEnv, env, &o.Options, o.ForkEnvironmentGitRepo,
+		ns, jxClient, kubeClient, envDir, &o.GitRepositoryOptions, o.HelmValuesConfig, o.Prefix, o.Git())
 	if err != nil {
 		return err
 	}
@@ -162,7 +164,7 @@ func (o *EditEnvOptions) Run() error {
 	if err != nil {
 		return err
 	}
-	o.Printf("Updated environment %s\n", util.ColorInfo(env.Name))
+	log.Infof("Updated environment %s\n", util.ColorInfo(env.Name))
 
 	err = kube.EnsureEnvironmentNamespaceSetup(kubeClient, jxClient, env, ns)
 	if err != nil {

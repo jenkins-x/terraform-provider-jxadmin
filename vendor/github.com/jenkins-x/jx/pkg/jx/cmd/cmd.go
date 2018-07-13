@@ -99,6 +99,7 @@ func NewJXCommand(f cmdutil.Factory, in io.Reader, out, err io.Writer) *cobra.Co
 				NewCmdCompletion(f, out),
 				NewCmdContext(f, out, err),
 				NewCmdEnvironment(f, out, err),
+				NewCmdTeam(f, out, err),
 				NewCmdGC(f, out, err),
 				NewCmdNamespace(f, out, err),
 				NewCmdPrompt(f, out, err),
@@ -173,7 +174,6 @@ func findCommands(subCommand string, commands ...*cobra.Command) []*cobra.Comman
 
 func commandHasParentName(command *cobra.Command, name string) bool {
 	path := fullPath(command)
-	//fmt.Printf("Command path %s for command %s does not contain %s\n", path, command.Use, name)
 	return strings.Contains(path, name)
 }
 

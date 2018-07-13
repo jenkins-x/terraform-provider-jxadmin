@@ -13,7 +13,8 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/blang/semver"
-	"github.com/jenkins-x/jx/pkg/jx/cmd/log"
+	"github.com/jenkins-x/jx/pkg/log"
+	"github.com/jenkins-x/jx/pkg/maven"
 	"github.com/jenkins-x/jx/pkg/util"
 	"github.com/pborman/uuid"
 	"gopkg.in/AlecAivazis/survey.v1"
@@ -39,6 +40,8 @@ func (o *CommonOptions) doInstallMissingDependencies(install []string) error {
 			err = o.installGcloud()
 		case "helm":
 			err = o.installHelm()
+		case "helm3":
+			err = o.installHelm3()
 		case "hyperkit":
 			err = o.installHyperkit()
 		case "kops":
@@ -79,9 +82,16 @@ func binaryShouldBeInstalled(d string) string {
 	if err != nil {
 		// look for windows exec
 		if runtime.GOOS == "windows" {
-			d2 := d + ".exe"
-			_, err = exec.LookPath(d2)
+			d = d + ".exe"
+			_, err = exec.LookPath(d)
 			if err == nil {
+				return ""
+			}
+		}
+		binDir, err := util.BinaryLocation()
+		if err == nil {
+			exists, err := util.FileExists(filepath.Join(binDir, d))
+			if err == nil && exists {
 				return ""
 			}
 		}
@@ -106,7 +116,7 @@ func (o *CommonOptions) shouldInstallBinary(binDir string, name string) (fileNam
 	}
 	pgmPath, err := exec.LookPath(fileName)
 	if err == nil {
-		o.Printf("%s is already available on your PATH at %s\n", util.ColorInfo(fileName), util.ColorInfo(pgmPath))
+		log.Warnf("%s is already available on your PATH at %s\n", util.ColorInfo(fileName), util.ColorInfo(pgmPath))
 		return
 	}
 
@@ -116,7 +126,7 @@ func (o *CommonOptions) shouldInstallBinary(binDir string, name string) (fileNam
 		return
 	}
 	if exists {
-		o.warnf("Please add %s to your PATH\n", util.ColorInfo(binDir))
+		log.Warnf("Please add %s to your PATH\n", util.ColorInfo(binDir))
 		return
 	}
 	download = true
@@ -124,12 +134,12 @@ func (o *CommonOptions) shouldInstallBinary(binDir string, name string) (fileNam
 }
 
 func (o *CommonOptions) downloadFile(clientURL string, fullPath string) error {
-	o.Printf("Downloading %s to %s...\n", util.ColorInfo(clientURL), util.ColorInfo(fullPath))
+	log.Infof("Downloading %s to %s...\n", util.ColorInfo(clientURL), util.ColorInfo(fullPath))
 	err := util.DownloadFile(fullPath, clientURL)
 	if err != nil {
 		return fmt.Errorf("Unable to download file %s from %s due to: %v", fullPath, clientURL, err)
 	}
-	fmt.Printf("Downloaded %s\n", util.ColorInfo(fullPath))
+	log.Infof("Downloaded %s\n", util.ColorInfo(fullPath))
 	return nil
 }
 
@@ -319,18 +329,18 @@ func (o *CommonOptions) installHyperkit() error {
 }
 
 func (o *CommonOptions) installKvm() error {
-	o.warnf("We cannot yet automate the installation of KVM - can you install this manually please?\nPlease see: https://www.linux-kvm.org/page/Downloads\n")
+	log.Warnf("We cannot yet automate the installation of KVM - can you install this manually please?\nPlease see: https://www.linux-kvm.org/page/Downloads\n")
 	return nil
 }
 
 func (o *CommonOptions) installKvm2() error {
-	o.warnf("We cannot yet automate the installation of KVM with KVM2 driver - can you install this manually please?\nPlease see: https://www.linux-kvm.org/page/Downloads " +
+	log.Warnf("We cannot yet automate the installation of KVM with KVM2 driver - can you install this manually please?\nPlease see: https://www.linux-kvm.org/page/Downloads " +
 		"and https://github.com/kubernetes/minikube/blob/master/docs/drivers.md#kvm2-driver\n")
 	return nil
 }
 
 func (o *CommonOptions) installVirtualBox() error {
-	o.warnf("We cannot yet automate the installation of VirtualBox - can you install this manually please?\nPlease see: https://www.virtualbox.org/wiki/Downloads\n")
+	log.Warnf("We cannot yet automate the installation of VirtualBox - can you install this manually please?\nPlease see: https://www.virtualbox.org/wiki/Downloads\n")
 	return nil
 }
 
@@ -358,10 +368,10 @@ func (o *CommonOptions) installXhyve() error {
 		if err != nil {
 			return err
 		}
-		o.Printf("xhyve driver installed\n")
+		log.Infoln("xhyve driver installed")
 	} else {
 		pgmPath, _ := exec.LookPath("docker-machine-driver-xhyve")
-		o.Printf("xhyve driver is already available on your PATH at %s\n", pgmPath)
+		log.Infof("xhyve driver is already available on your PATH at %s\n", pgmPath)
 	}
 	return nil
 }
@@ -374,7 +384,7 @@ func (o *CommonOptions) installhyperv() error {
 	}
 	if strings.Contains(info, "Disabled") {
 
-		o.Printf("hyperv is Disabled, this computer will need to restart\n and after restart you will need to rerun your inputted commmand.")
+		log.Info("hyperv is Disabled, this computer will need to restart\n and after restart you will need to rerun your inputted commmand.")
 
 		message := fmt.Sprintf("Would you like to restart your computer?")
 
@@ -395,7 +405,7 @@ func (o *CommonOptions) installhyperv() error {
 		}
 
 	} else {
-		o.Printf("hyperv is already Enabled\n")
+		log.Infoln("hyperv is already Enabled")
 	}
 	return nil
 }
@@ -434,6 +444,117 @@ func (o *CommonOptions) installHelm() error {
 		return err
 	}
 	return os.Chmod(fullPath, 0755)
+}
+
+func (o *CommonOptions) installHelm3() error {
+	binDir, err := util.BinaryLocation()
+	if err != nil {
+		return err
+	}
+	binary := "helm3"
+	fileName, flag, err := o.shouldInstallBinary(binDir, binary)
+	if err != nil || !flag {
+		return err
+	}
+	/*
+	   latestVersion, err := util.GetLatestVersionFromGitHub("kubernetes", "helm")
+	   	if err != nil {
+	   		return err
+	   	}
+	*/
+	/*
+		latestVersion := "3"
+		clientURL := fmt.Sprintf("https://storage.googleapis.com/kubernetes-helm/helm-dev-v%s-%s-%s.tar.gz", latestVersion, runtime.GOOS, runtime.GOARCH)
+	*/
+	// let use our patched version
+	latestVersion := "untagged-93375777c6644a452a64"
+	clientURL := fmt.Sprintf("https://github.com/jstrachan/helm/releases/download/%v/helm-%s-%s.tar.gz", latestVersion, runtime.GOOS, runtime.GOARCH)
+
+	tmpDir := filepath.Join(binDir, "helm3.tmp")
+	err = os.MkdirAll(tmpDir, DefaultWritePermissions)
+	if err != nil {
+		return err
+	}
+	fullPath := filepath.Join(binDir, binary)
+	tarFile := filepath.Join(tmpDir, fileName+".tgz")
+	err = o.downloadFile(clientURL, tarFile)
+	if err != nil {
+		return err
+	}
+	err = util.UnTargz(tarFile, tmpDir, []string{"helm", "helm"})
+	if err != nil {
+		return err
+	}
+	err = os.Remove(tarFile)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(filepath.Join(tmpDir, "helm"), fullPath)
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(tmpDir)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(fullPath, 0755)
+}
+
+func (o *CommonOptions) installMavenIfRequired() error {
+	_, err := util.RunCommandWithOutput("", "mvn", "-v")
+	if err == nil {
+		return nil
+	}
+	// lets assume maven is not installed so lets download it
+	clientURL := fmt.Sprintf("http://central.maven.org/maven2/org/apache/maven/apache-maven/%s/apache-maven-%s-bin.zip", maven.MavenVersion, maven.MavenVersion)
+
+	log.Infof("Apache Maven is not installed so lets download: %s\n", util.ColorInfo(clientURL))
+	homeDir, err := util.ConfigDir()
+	if err != nil {
+		return err
+	}
+	mvnDir := filepath.Join(homeDir, "maven")
+	mvnTmpDir := filepath.Join(homeDir, "maven-tmp")
+	zipFile := filepath.Join(homeDir, "mvn.zip")
+
+	err = os.MkdirAll(mvnDir, DefaultWritePermissions)
+	if err != nil {
+		return err
+	}
+
+	err = o.downloadFile(clientURL, zipFile)
+	if err != nil {
+		return err
+	}
+
+	err = util.Unzip(zipFile, mvnTmpDir)
+	if err != nil {
+		return err
+	}
+
+	// lets find a directory inside the unzipped folder
+	files, err := ioutil.ReadDir(mvnTmpDir)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		name := f.Name()
+		if f.IsDir() && strings.HasPrefix(name, "apache-maven") {
+			os.RemoveAll(mvnDir)
+
+			err = os.Rename(filepath.Join(mvnTmpDir, name), mvnDir)
+			if err != nil {
+				return err
+			}
+			log.Infof("Apache Maven is installed at: %s\n", util.ColorInfo(mvnDir))
+			err = os.Remove(zipFile)
+			if err != nil {
+				return err
+			}
+			return os.RemoveAll(mvnTmpDir)
+		}
+	}
+	return fmt.Errorf("Could not find an apache-maven folder inside the unzipped maven distro at %s", mvnTmpDir)
 }
 
 func (o *CommonOptions) installTerraform() error {
@@ -656,7 +777,7 @@ func (o *CommonOptions) installGcloud() error {
 		return err
 	}
 
-	return o.runCommand("brew", "install", "google-cloud-sdk")
+	return o.runCommand("brew", "cask", "install", "google-cloud-sdk")
 }
 
 func (o *CommonOptions) installAzureCli() error {
@@ -692,12 +813,12 @@ func (o *CommonOptions) GetCloudProvider(p string) (string, error) {
 
 func (o *CommonOptions) getClusterDependencies(deps []string) []string {
 	d := binaryShouldBeInstalled("kubectl")
-	if d != "" {
+	if d != "" && util.StringArrayIndex(deps, d) < 0 {
 		deps = append(deps, d)
 	}
 
 	d = binaryShouldBeInstalled("helm")
-	if d != "" {
+	if d != "" && util.StringArrayIndex(deps, d) < 0 {
 		deps = append(deps, d)
 	}
 
@@ -705,7 +826,7 @@ func (o *CommonOptions) getClusterDependencies(deps []string) []string {
 	if runtime.GOOS == "darwin" {
 		if !o.NoBrew {
 			d = binaryShouldBeInstalled("brew")
-			if d != "" {
+			if d != "" && util.StringArrayIndex(deps, d) < 0 {
 				deps = append(deps, d)
 			}
 		}
@@ -758,7 +879,7 @@ func (o *CommonOptions) installRequirements(cloudProvider string, extraDependenc
 
 func (o *CommonOptions) addRequiredBinary(binName string, deps []string) []string {
 	d := binaryShouldBeInstalled(binName)
-	if d != "" {
+	if d != "" && util.StringArrayIndex(deps, d) < 0 {
 		deps = append(deps, d)
 	}
 	return deps
@@ -802,13 +923,23 @@ rules:
 		return err
 	}
 
-	err = o.runCommand("kubectl", "create", "clusterrolebinding", "kube-system-cluster-admin", "--clusterrole", "cluster-admin", "--serviceaccount", "kube-system:default")
-	if err != nil {
-		return err
+	_, err1 := o.getCommandOutput("", "kubectl", "create", "clusterrolebinding", "kube-system-cluster-admin", "--clusterrole", "cluster-admin", "--serviceaccount", "kube-system:default")
+	if err1 != nil {
+		if strings.Contains(err1.Error(), "AlreadyExists") {
+			log.Success("role cluster-admin already exists for the cluster")
+		} else {
+			return err1
+		}
 	}
-	err = o.runCommand("kubectl", "create", "-f", tmpfile.Name())
-	if err != nil {
-		return err
+
+	_, err2 := o.getCommandOutput("", "kubectl", "create", "-f", tmpfile.Name())
+	if err2 != nil {
+		if strings.Contains(err2.Error(), "AlreadyExists") {
+			log.Success("clusterroles.rbac.authorization.k8s.io 'cluster-admin' already exists")
+		} else {
+			return err2
+		}
 	}
+
 	return nil
 }

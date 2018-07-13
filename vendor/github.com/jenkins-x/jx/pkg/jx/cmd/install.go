@@ -15,10 +15,10 @@ import (
 	"github.com/jenkins-x/jx/pkg/auth"
 	"github.com/jenkins-x/jx/pkg/config"
 	"github.com/jenkins-x/jx/pkg/gits"
-	"github.com/jenkins-x/jx/pkg/jx/cmd/log"
 	"github.com/jenkins-x/jx/pkg/jx/cmd/templates"
 	cmdutil "github.com/jenkins-x/jx/pkg/jx/cmd/util"
 	"github.com/jenkins-x/jx/pkg/kube"
+	"github.com/jenkins-x/jx/pkg/log"
 	"github.com/jenkins-x/jx/pkg/util"
 	"github.com/spf13/cobra"
 	"gopkg.in/AlecAivazis/survey.v1"
@@ -53,7 +53,9 @@ type InstallFlags struct {
 	Timeout                  string
 	RegisterLocalHelmRepo    bool
 	CleanupTempFiles         bool
+	InstallOnly              bool
 	EnvironmentGitOwner      string
+	Version                  string
 }
 
 type Secrets struct {
@@ -180,22 +182,28 @@ func createInstallOptions(f cmdutil.Factory, out io.Writer, errOut io.Writer) In
 
 func (options *InstallOptions) addInstallFlags(cmd *cobra.Command, includesInit bool) {
 	flags := &options.Flags
-	cmd.Flags().StringVarP(&flags.CloudEnvRepository, "cloud-environment-repo", "", DEFAULT_CLOUD_ENVIRONMENTS_URL, "Cloud Environments git repo")
+	flags.addCloudEnvOptions(cmd)
 	cmd.Flags().StringVarP(&flags.LocalHelmRepoName, "local-helm-repo-name", "", kube.LocalHelmRepoName, "The name of the helm repository for the installed Chart Museum")
 	cmd.Flags().BoolVarP(&flags.NoDefaultEnvironments, "no-default-environments", "", false, "Disables the creation of the default Staging and Production environments")
 	cmd.Flags().StringVarP(&flags.DefaultEnvironmentPrefix, "default-environment-prefix", "", "", "Default environment repo prefix, your git repos will be of the form 'environment-$prefix-$envName'")
-	cmd.Flags().BoolVarP(&flags.LocalCloudEnvironment, "local-cloud-environment", "", false, "Ignores default cloud-environment-repo and uses current directory ")
 	cmd.Flags().StringVarP(&flags.Namespace, "namespace", "", "jx", "The namespace the Jenkins X platform should be installed into")
 	cmd.Flags().StringVarP(&flags.Timeout, "timeout", "", defaultInstallTimeout, "The number of seconds to wait for the helm install to complete")
 	cmd.Flags().StringVarP(&flags.EnvironmentGitOwner, "environment-git-owner", "", "", "The git provider organisation to create the environment git repositories in")
 	cmd.Flags().BoolVarP(&flags.RegisterLocalHelmRepo, "register-local-helmrepo", "", false, "Registers the Jenkins X chartmuseum registry with your helm client [default false]")
 	cmd.Flags().BoolVarP(&flags.CleanupTempFiles, "cleanup-temp-files", "", true, "Cleans up any temporary values.yaml used by helm install [default true]")
 	cmd.Flags().BoolVarP(&flags.HelmTLS, "helm-tls", "", false, "Whether to use TLS with helm")
+	cmd.Flags().BoolVarP(&flags.InstallOnly, "install-only", "", false, "Force the install comand to fail if there is already an installation. Otherwise lets update the installation")
+	cmd.Flags().StringVarP(&flags.Version, "version", "", "", "The specific platform version to install")
 
 	addGitRepoOptionsArguments(cmd, &options.GitRepositoryOptions)
 	options.HelmValuesConfig.AddExposeControllerValues(cmd, true)
 	options.AdminSecretsService.AddAdminSecretsValues(cmd)
 	options.InitOptions.addInitFlags(cmd)
+}
+
+func (flags *InstallFlags) addCloudEnvOptions(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&flags.CloudEnvRepository, "cloud-environment-repo", "", DEFAULT_CLOUD_ENVIRONMENTS_URL, "Cloud Environments git repo")
+	cmd.Flags().BoolVarP(&flags.LocalCloudEnvironment, "local-cloud-environment", "", false, "Ignores default cloud-environment-repo and uses current directory ")
 }
 
 // Run implements this command
@@ -206,17 +214,27 @@ func (options *InstallOptions) Run() error {
 	}
 	options.kubeClient = client
 
+	initOpts := &options.InitOptions
+	helmBinary := initOpts.HelmBinary()
+
+	err = options.installRequirements(options.Flags.Provider, helmBinary)
+	if err != nil {
+		return err
+	}
+
 	context, err := options.getCommandOutput("", "kubectl", "config", "current-context")
+	if err != nil {
+		return err
+	}
+
+	_, originalNs, err := options.KubeClient()
 	if err != nil {
 		return err
 	}
 
 	ns := options.Flags.Namespace
 	if ns == "" {
-		_, ns, err = options.KubeClient()
-		if err != nil {
-			return err
-		}
+		ns = originalNs
 	}
 
 	err = kube.EnsureNamespaceCreated(client, ns, map[string]string{kube.LabelTeam: ns}, nil)
@@ -234,10 +252,9 @@ func (options *InstallOptions) Run() error {
 		return err
 	}
 
-	err = options.installRequirements(options.Flags.Provider)
-	if err != nil {
-		return err
-	}
+	initOpts.Flags.Provider = options.Flags.Provider
+	initOpts.Flags.Namespace = options.Flags.Namespace
+	initOpts.BatchMode = options.BatchMode
 
 	if options.Flags.Provider == AKS {
 		/**
@@ -245,22 +262,11 @@ func (options *InstallOptions) Run() error {
 		 */
 		err = options.createClusterAdmin()
 		if err != nil {
-			msg := err.Error()
-			if strings.Contains(msg, "AlreadyExists") {
-				log.Success("role cluster-admin already exists for the cluster")
-
-			} else {
-				return err
-			}
+			return err
 		} else {
 			log.Success("created role cluster-admin")
 		}
 	}
-
-	initOpts := &options.InitOptions
-	initOpts.Flags.Provider = options.Flags.Provider
-	initOpts.Flags.Namespace = options.Flags.Namespace
-	initOpts.BatchMode = options.BatchMode
 
 	currentContext, err := options.getCommandOutput("", "kubectl", "config", "current-context")
 	if err != nil {
@@ -351,8 +357,7 @@ func (options *InstallOptions) Run() error {
 	}
 
 	// clone the environments repo
-	wrkDir := filepath.Join(util.HomeDir(), ".jx", "cloud-environments")
-	err = options.cloneJXCloudEnvironmentsRepo(wrkDir)
+	wrkDir, err := options.cloneJXCloudEnvironmentsRepo()
 	if err != nil {
 		return err
 	}
@@ -401,24 +406,78 @@ func (options *InstallOptions) Run() error {
 			Name: JXInstallConfig,
 		},
 	}
-	_, err = options.kubeClient.CoreV1().Secrets(ns).Create(jxSecrets)
-	if err != nil {
-		return err
+	secretResources := options.kubeClient.CoreV1().Secrets(ns)
+	oldSecret, err := secretResources.Get(JXInstallConfig, metav1.GetOptions{})
+	if oldSecret == nil || err != nil {
+		_, err = secretResources.Create(jxSecrets)
+		if err != nil {
+			return err
+		}
+	} else {
+		oldSecret.Data = jxSecrets.Data
+		_, err = secretResources.Update(oldSecret)
+		if err != nil {
+			return err
+		}
 	}
 
-	options.Printf("Generated helm values %s\n", util.ColorInfo(configFileName))
+	log.Infof("Generated helm values %s\n", util.ColorInfo(configFileName))
 
 	timeout := options.Flags.Timeout
 	if timeout == "" {
 		timeout = defaultInstallTimeout
 	}
-	arg := fmt.Sprintf("ARGS=--values=%s --values=%s --values=%s --namespace=%s --timeout=%s", secretsFileName, adminSecretsFileName, configFileName, ns, timeout)
 
 	// run the helm install
-	options.Printf("Installing Jenkins X platform helm chart from: %s\n", makefileDir)
+	log.Infof("Installing Jenkins X platform helm chart from: %s\n", makefileDir)
 
 	options.Verbose = true
-	err = options.runCommandFromDir(makefileDir, "make", arg, "install")
+	err = options.addHelmBinaryRepoIfMissing(helmBinary, DEFAULT_CHARTMUSEUM_URL, "jenkins-x")
+	if err != nil {
+		return err
+	}
+
+	version := options.Flags.Version
+	if version == "" {
+		version, err = loadVersionFromCloudEnvironmentsDir(wrkDir)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = options.runCommand(helmBinary, "repo", "update")
+	if err != nil {
+		return err
+	}
+
+	args := []string{"install", "--name"}
+	if !options.Flags.InstallOnly {
+		args = []string{"upgrade", "--install"}
+	}
+	args = append(args, "jenkins-x", "jenkins-x/jenkins-x-platform", "-f", "./myvalues.yaml", "-f", "./secrets.yaml", "--namespace="+ns, "--timeout="+timeout)
+	valuesFiles := []string{secretsFileName, adminSecretsFileName, configFileName}
+	curDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	myValuesFile := filepath.Join(curDir, "myvalues.yaml")
+	exists, err := util.FileExists(myValuesFile)
+	if err != nil {
+		return err
+	}
+	if exists {
+		log.Infof("Using local value overrides file %s\n", util.ColorInfo(myValuesFile))
+		valuesFiles = append(valuesFiles, myValuesFile)
+	}
+
+	if version != "" {
+		args = append(args, "--version", version)
+	}
+	for _, valuesFile := range valuesFiles {
+		args = append(args, fmt.Sprintf("--values=%s", valuesFile))
+	}
+
+	options.runCommandVerboseAt(makefileDir, helmBinary, args...)
 	if err != nil {
 		return err
 	}
@@ -441,6 +500,21 @@ func (options *InstallOptions) Run() error {
 	}
 	log.Infof("Jenkins X deployments ready in namespace %s\n", ns)
 
+	options.currentNamespace = ns
+
+	if helmBinary != "helm" {
+		// default apps to use helm3 too
+		helmOptions := EditHelmBinOptions{}
+		helmOptions.CommonOptions = options.CommonOptions
+		helmOptions.CommonOptions.BatchMode = true
+		helmOptions.CommonOptions.Args = []string{helmBinary}
+		helmOptions.currentNamespace = ns
+		err = helmOptions.Run()
+		if err != nil {
+			return err
+		}
+	}
+
 	addonConfig, err := addon.LoadAddonsConfig()
 	if err != nil {
 		return err
@@ -460,12 +534,13 @@ func (options *InstallOptions) Run() error {
 	if !options.Flags.NoDefaultEnvironments {
 		log.Info("Getting Jenkins API Token\n")
 		err = options.retry(3, 2*time.Second, func() (err error) {
+			options.CreateJenkinsUserOptions.CommonOptions = options.CommonOptions
 			options.CreateJenkinsUserOptions.Password = options.AdminSecretsService.Flags.DefaultAdminPassword
 			options.CreateJenkinsUserOptions.UseBrowser = true
 			if options.BatchMode {
 				options.CreateJenkinsUserOptions.BatchMode = true
 				options.CreateJenkinsUserOptions.Headless = true
-				options.Printf("Attempting to find the Jenkins API Token with the browser in headless mode...")
+				log.Info("Attempting to find the Jenkins API Token with the browser in headless mode...")
 			}
 			err = options.CreateJenkinsUserOptions.Run()
 			return
@@ -474,37 +549,47 @@ func (options *InstallOptions) Run() error {
 			return err
 		}
 
-		if options.Flags.DefaultEnvironmentPrefix == "" {
-			options.Flags.DefaultEnvironmentPrefix = strings.ToLower(randomdata.SillyName())
-		}
-
-		log.Info("Creating default staging and production environments\n")
-		options.CreateEnvOptions.Options.Name = "staging"
-		options.CreateEnvOptions.Options.Spec.Label = "Staging"
-		options.CreateEnvOptions.Options.Spec.Order = 100
-		options.CreateEnvOptions.GitRepositoryOptions.Owner = options.Flags.EnvironmentGitOwner
-		options.CreateEnvOptions.Prefix = options.Flags.DefaultEnvironmentPrefix
-		if options.BatchMode {
-			options.CreateEnvOptions.BatchMode = options.BatchMode
-		}
-
-		err = options.CreateEnvOptions.Run()
+		jxClient, _, err := options.JXClient()
 		if err != nil {
 			return err
 		}
-		options.CreateEnvOptions.Options.Name = "production"
-		options.CreateEnvOptions.Options.Spec.Label = "Production"
-		options.CreateEnvOptions.Options.Spec.Order = 200
-		options.CreateEnvOptions.Options.Spec.PromotionStrategy = v1.PromotionStrategyTypeManual
-		options.CreateEnvOptions.PromotionStrategy = string(v1.PromotionStrategyTypeManual)
-		options.CreateEnvOptions.GitRepositoryOptions.Owner = options.Flags.EnvironmentGitOwner
-		if options.BatchMode {
-			options.CreateEnvOptions.BatchMode = options.BatchMode
-		}
 
-		err = options.CreateEnvOptions.Run()
-		if err != nil {
-			return err
+		// lets only recreate the environments if its the first time we run this
+		_, envNames, err := kube.GetEnvironments(jxClient, ns)
+		if err != nil || len(envNames) <= 1 {
+
+			if options.Flags.DefaultEnvironmentPrefix == "" {
+				options.Flags.DefaultEnvironmentPrefix = strings.ToLower(randomdata.SillyName())
+			}
+
+			log.Info("Creating default staging and production environments\n")
+			options.CreateEnvOptions.Options.Name = "staging"
+			options.CreateEnvOptions.Options.Spec.Label = "Staging"
+			options.CreateEnvOptions.Options.Spec.Order = 100
+			options.CreateEnvOptions.GitRepositoryOptions.Owner = options.Flags.EnvironmentGitOwner
+			options.CreateEnvOptions.Prefix = options.Flags.DefaultEnvironmentPrefix
+			if options.BatchMode {
+				options.CreateEnvOptions.BatchMode = options.BatchMode
+			}
+
+			err = options.CreateEnvOptions.Run()
+			if err != nil {
+				return err
+			}
+			options.CreateEnvOptions.Options.Name = "production"
+			options.CreateEnvOptions.Options.Spec.Label = "Production"
+			options.CreateEnvOptions.Options.Spec.Order = 200
+			options.CreateEnvOptions.Options.Spec.PromotionStrategy = v1.PromotionStrategyTypeManual
+			options.CreateEnvOptions.PromotionStrategy = string(v1.PromotionStrategyTypeManual)
+			options.CreateEnvOptions.GitRepositoryOptions.Owner = options.Flags.EnvironmentGitOwner
+			if options.BatchMode {
+				options.CreateEnvOptions.BatchMode = options.BatchMode
+			}
+
+			err = options.CreateEnvOptions.Run()
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -524,9 +609,13 @@ func (options *InstallOptions) Run() error {
 
 	options.logAdminPassword()
 
-	options.Printf("\nTo import existing projects into Jenkins:     %s\n", util.ColorInfo("jx import"))
-	options.Printf("To create a new Spring Boot microservice:       %s\n", util.ColorInfo("jx create spring -d web -d actuator"))
-	options.Printf("To create a new microservice from a quickstart: %s\n", util.ColorInfo("jx create quickstart"))
+	log.Infof("\nYour kubernetes context is now set to the namespace: %s \n", util.ColorInfo(ns))
+	log.Infof("To switch back to your original namespace use: %s\n", util.ColorInfo("jx ns "+originalNs))
+	log.Infof("For help on switching contexts see: %s\n\n", util.ColorInfo("https://jenkins-x.io/developing/kube-context/"))
+
+	log.Infof("To import existing projects into Jenkins:       %s\n", util.ColorInfo("jx import"))
+	log.Infof("To create a new Spring Boot microservice:       %s\n", util.ColorInfo("jx create spring -d web -d actuator"))
+	log.Infof("To create a new microservice from a quickstart: %s\n", util.ColorInfo("jx create quickstart"))
 	return nil
 }
 
@@ -540,7 +629,7 @@ func isOpenShiftProvider(provider string) bool {
 }
 
 func (o *InstallOptions) enableOpenShiftSCC(ns string) error {
-	o.Printf("Enabling anyui for the Jenkins service account in namespace %s\n", ns)
+	log.Infof("Enabling anyui for the Jenkins service account in namespace %s\n", ns)
 	err := o.runCommand("oc", "adm", "policy", "add-scc-to-user", "anyuid", "system:serviceaccount:"+ns+":jenkins")
 	if err != nil {
 		return err
@@ -567,23 +656,55 @@ func (options *InstallOptions) logAdminPassword() {
 	********************************************************
 	
 	`
-	options.Printf(astrix, fmt.Sprintf("Your admin password is: %s", util.ColorInfo(options.AdminSecretsService.Flags.DefaultAdminPassword)))
+	log.Infof(astrix, fmt.Sprintf("Your admin password is: %s", util.ColorInfo(options.AdminSecretsService.Flags.DefaultAdminPassword)))
+}
+
+func loadVersionFromCloudEnvironmentsDir(wrkDir string) (string, error) {
+	version := ""
+	path := filepath.Join(wrkDir, "Makefile")
+	exists, err := util.FileExists(path)
+	if err != nil {
+		return version, err
+	}
+	if !exists {
+		return version, fmt.Errorf("File does not exist %s", path)
+	}
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return version, err
+	}
+	prefix := "CHART_VERSION"
+	separator := ":="
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, prefix) {
+			text := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+			if !strings.HasPrefix(text, separator) {
+				log.Warnf("expecting separator %s for line: %s in file %s", separator, line, path)
+			} else {
+				version = strings.TrimSpace(strings.TrimPrefix(text, separator))
+				return version, nil
+			}
+		}
+	}
+	log.Warnf("File %s does not include a line starting with %s", path, prefix)
+	return version, nil
 }
 
 // clones the jenkins-x cloud-environments repo to a local working dir
-func (o *InstallOptions) cloneJXCloudEnvironmentsRepo(wrkDir string) error {
+func (o *InstallOptions) cloneJXCloudEnvironmentsRepo() (string, error) {
+	wrkDir := filepath.Join(util.HomeDir(), ".jx", "cloud-environments")
 	log.Infof("Cloning the Jenkins X cloud environments repo to %s\n", wrkDir)
 	if o.Flags.CloudEnvRepository == "" {
-		return fmt.Errorf("No cloud environment git URL")
+		return wrkDir, fmt.Errorf("No cloud environment git URL")
 	}
 	if o.Flags.LocalCloudEnvironment {
 		currentDir, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("error getting current working directory %v", err)
+			return wrkDir, fmt.Errorf("error getting current working directory %v", err)
 		}
 		log.Infof("Copying local dir to %s\n", wrkDir)
 
-		return util.CopyDir(currentDir, wrkDir, true)
+		return wrkDir, util.CopyDir(currentDir, wrkDir, true)
 	}
 	_, err := git.PlainClone(wrkDir, false, &git.CloneOptions{
 		URL:           o.Flags.CloudEnvRepository,
@@ -603,22 +724,22 @@ func (o *InstallOptions) cloneJXCloudEnvironmentsRepo(wrkDir string) error {
 				}
 				err := survey.AskOne(confirm, &flag, nil)
 				if err != nil {
-					return err
+					return wrkDir, err
 				}
 			}
 			if flag {
 				err := os.RemoveAll(wrkDir)
 				if err != nil {
-					return err
+					return wrkDir, err
 				}
 
-				return o.cloneJXCloudEnvironmentsRepo(wrkDir)
+				return o.cloneJXCloudEnvironmentsRepo()
 			}
 		} else {
-			return err
+			return wrkDir, err
 		}
 	}
-	return nil
+	return wrkDir, nil
 }
 
 // returns secrets that are used as values during the helm install
@@ -664,7 +785,7 @@ func (o *InstallOptions) getGitToken() (string, string, error) {
 			return username, os.Getenv(JX_GIT_TOKEN), nil
 		}
 	}
-	o.Printf("Lets set up a git username and API token to be able to perform CI/CD\n\n")
+	log.Infof("Lets set up a git username and API token to be able to perform CI/CD\n\n")
 	userAuth, err := o.getGitUser("")
 	if err != nil {
 		return "", "", err
@@ -747,7 +868,7 @@ func (o *InstallOptions) getGitUser(message string) (*auth.UserAuth, error) {
 	}
 	if userAuth.IsInvalid() {
 		f := func(username string) error {
-			gits.PrintCreateRepositoryGenerateAccessToken(server, username, o.Out)
+			o.Git().PrintCreateRepositoryGenerateAccessToken(server, username, o.Out)
 			return nil
 		}
 
@@ -772,7 +893,7 @@ func (o *InstallOptions) getGitUser(message string) (*auth.UserAuth, error) {
 }
 
 func (o *InstallOptions) installAddon(name string) error {
-	o.Printf("Installing addon %s\n", util.ColorInfo(name))
+	log.Infof("Installing addon %s\n", util.ColorInfo(name))
 
 	options := &CreateAddonOptions{
 		CreateOptions: CreateOptions{

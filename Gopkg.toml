@@ -35,8 +35,10 @@ required = ["k8s.io/client-go/kubernetes/fake"]
   version = "0.11.7"
 
 [[constraint]]
-  branch = "master"
+  #branch = "master"
   name = "github.com/jenkins-x/jx"
+  source = "github.com/jstrachan/jx"
+  branch = "malarkey"
 
 [[constraint]]
   name = "k8s.io/apimachinery"

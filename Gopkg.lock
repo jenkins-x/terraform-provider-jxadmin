@@ -633,7 +633,7 @@
   revision = "0bc3c6465b1cbac88473244061521e75c5394d1e"
 
 [[projects]]
-  branch = "master"
+  branch = "malarkey"
   name = "github.com/jenkins-x/jx"
   packages = [
     "pkg/addon",
@@ -656,11 +656,11 @@
     "pkg/jx/cmd",
     "pkg/jx/cmd/aks",
     "pkg/jx/cmd/gke",
-    "pkg/jx/cmd/log",
     "pkg/jx/cmd/table",
     "pkg/jx/cmd/templates",
     "pkg/jx/cmd/util",
     "pkg/kube",
+    "pkg/log",
     "pkg/maven",
     "pkg/nodes",
     "pkg/pipeline_events",
@@ -671,7 +671,8 @@
     "pkg/util",
     "pkg/version"
   ]
-  revision = "b470dadac13c36defd828900190eaceb083311b6"
+  revision = "f7e7ba5722d6a588a3d4fa37a4b031c6f1ec63a5"
+  source = "github.com/jstrachan/jx"
 
 [[projects]]
   name = "github.com/jmespath/go-jmespath"
@@ -853,6 +854,12 @@
   version = "v0.8.0"
 
 [[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/posener/complete"
   packages = [
     ".",
@@ -945,6 +952,12 @@
   ]
   revision = "f187355171c936ac84a82793659ebb4936bc1c23"
   version = "v1.3.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/trivago/tgo"
@@ -1478,6 +1491,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "86acab19d04134476b9632cbbca9e04ff42e1dce491a2888ac863355516d0071"
+  inputs-digest = "9b66aa0b38d3d6064caa07996b84963afda3ec4e029d5ce1ebb41fb65237ea05"
   solver-name = "gps-cdcl"
   solver-version = 1

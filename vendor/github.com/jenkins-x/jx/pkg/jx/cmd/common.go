@@ -11,6 +11,8 @@ import (
 	"github.com/jenkins-x/golang-jenkins"
 	"github.com/jenkins-x/jx/pkg/auth"
 	"github.com/jenkins-x/jx/pkg/client/clientset/versioned"
+	"github.com/jenkins-x/jx/pkg/gits"
+	"github.com/jenkins-x/jx/pkg/log"
 	core_v1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 
@@ -55,6 +57,7 @@ type CommonOptions struct {
 	devNamespace        string
 	jxClient            versioned.Interface
 	jenkinsClient       *gojenkins.Jenkins
+	git                 gits.Gitter
 }
 
 type ServerFlags struct {
@@ -77,17 +80,11 @@ func (c *CommonOptions) CreateTable() table.Table {
 	return c.Factory.CreateTable(c.Stdout())
 }
 
-// Printf outputs the given text to the console
-func (c *CommonOptions) Printf(format string, a ...interface{}) (n int, err error) {
-	return fmt.Fprintf(c.Stdout(), format, a...)
-}
-
 // Debugf outputs the given text to the console if verbose mode is enabled
-func (c *CommonOptions) Debugf(format string, a ...interface{}) (n int, err error) {
+func (c *CommonOptions) Debugf(format string, a ...interface{}) {
 	if c.Verbose {
-		return fmt.Fprintf(c.Stdout(), format, a...)
+		log.Infof(format, a)
 	}
-	return 0, nil
 }
 
 func (options *CommonOptions) addCommonFlags(cmd *cobra.Command) {
@@ -184,17 +181,18 @@ func (o *CommonOptions) GetJenkinsURL() (string, error) {
 	return o.Factory.GetJenkinsURL(kubeClient, ns)
 }
 
+func (o *CommonOptions) Git() gits.Gitter {
+	if o.git == nil {
+		o.git = gits.NewGitCLI()
+	}
+	return o.git
+}
 func (o *CommonOptions) TeamAndEnvironmentNames() (string, string, error) {
 	kubeClient, currentNs, err := o.KubeClient()
 	if err != nil {
 		return "", "", err
 	}
 	return kube.GetDevNamespace(kubeClient, currentNs)
-}
-
-// warnf generates a warning
-func (o *CommonOptions) warnf(format string, a ...interface{}) {
-	o.Printf(util.ColorWarning("WARNING: "+format), a...)
 }
 
 func (o *ServerFlags) addGitServerFlags(cmd *cobra.Command) {
@@ -250,7 +248,7 @@ func (o *CommonOptions) findServer(config *auth.AuthConfig, serverFlags *ServerF
 		if name != "" && o.BatchMode {
 			server = config.GetServerByName(name)
 			if server == nil {
-				o.warnf("Current server %s no longer exists\n", name)
+				log.Warnf("Current server %s no longer exists\n", name)
 			}
 		}
 	}
@@ -396,7 +394,7 @@ func (o *CommonOptions) retry(attempts int, sleep time.Duration, call func() err
 
 		time.Sleep(sleep)
 
-		o.Printf("retrying after error:%s\n", err)
+		log.Infof("retrying after error:%s\n", err)
 	}
 	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
 }
@@ -409,7 +407,7 @@ func (o *CommonOptions) retryQuiet(attempts int, sleep time.Duration, call func(
 		err = call()
 		if err == nil {
 			if dot {
-				o.Printf("\n")
+				log.Blank()
 			}
 			return
 		}
@@ -422,15 +420,15 @@ func (o *CommonOptions) retryQuiet(attempts int, sleep time.Duration, call func(
 
 		message := fmt.Sprintf("retrying after error: %s", err)
 		if lastMessage == message {
-			o.Printf(".")
+			log.Info(".")
 			dot = true
 		} else {
 			lastMessage = message
 			if dot {
 				dot = false
-				o.Printf("\n")
+				log.Blank()
 			}
-			o.Printf("%s\n", lastMessage)
+			log.Infof("%s\n", lastMessage)
 		}
 	}
 	return fmt.Errorf("after %d attempts, last error: %s", attempts, err)
@@ -446,7 +444,7 @@ func (o *CommonOptions) retryQuietlyUntilTimeout(timeout time.Duration, sleep ti
 		err = call()
 		if err == nil {
 			if dot {
-				o.Printf("\n")
+				log.Blank()
 			}
 			return
 		}
@@ -459,15 +457,15 @@ func (o *CommonOptions) retryQuietlyUntilTimeout(timeout time.Duration, sleep ti
 
 		message := fmt.Sprintf("retrying after error: %s", err)
 		if lastMessage == message {
-			o.Printf(".")
+			log.Info(".")
 			dot = true
 		} else {
 			lastMessage = message
 			if dot {
 				dot = false
-				o.Printf("\n")
+				log.Blank()
 			}
-			o.Printf("%s\n", lastMessage)
+			log.Infof("%s\n", lastMessage)
 		}
 	}
 }
@@ -521,7 +519,7 @@ func (o *CommonOptions) tailBuild(jobName string, build *gojenkins.Build) error 
 		return err
 	}
 	buildPath := u.Path
-	o.Printf("%s %s\n", util.ColorStatus("tailing the log of"), util.ColorInfo(fmt.Sprintf("%s #%d", jobName, build.Number)))
+	log.Infof("%s %s\n", "tailing the log of", fmt.Sprintf("%s #%d", jobName, build.Number))
 	return jenkins.TailLog(buildPath, o.Out, time.Second, time.Hour*100)
 }
 
