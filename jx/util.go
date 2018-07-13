@@ -8,6 +8,8 @@ import (
 
 type TerraformOptions struct {
 	cmd.CommonOptions
+
+	TestMode bool
 }
 
 func toResourceName(ns string, name string) string {

@@ -44,6 +44,7 @@ func createProvider() *schema.Provider {
 
 		ResourcesMap: map[string]*schema.Resource{
 			"jx_environment": resourceEnvironment(),
+			"jx_team":        resourceTeam(),
 		},
 
 		DataSourcesMap: map[string]*schema.Resource{
@@ -68,13 +69,17 @@ func init() {
 func providerConfigure(p *schema.Provider) schema.ConfigureFunc {
 	return func(d *schema.ResourceData) (interface{}, error) {
 		options := &TerraformOptions{
-			CommonOptions: cmd.CommonOptions{
-				Factory:   cmdutil.NewFactory(),
-				Out:       os.Stdout,
-				Err:       os.Stderr,
-				BatchMode: true,
-			},
+			CommonOptions: newCommonOptions(),
 		}
 		return options, nil
+	}
+}
+
+func newCommonOptions() cmd.CommonOptions {
+	return cmd.CommonOptions{
+		Factory:   cmdutil.NewFactory(),
+		Out:       os.Stdout,
+		Err:       os.Stderr,
+		BatchMode: true,
 	}
 }
