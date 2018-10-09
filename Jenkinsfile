@@ -1,7 +1,5 @@
 pipeline {
-    agent {
-        label "jenkins-go"
-    }
+    agent any
     stages {
         stage('CI Build and push snapshot') {
             when {
@@ -10,12 +8,11 @@ pipeline {
             steps {
                 dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
                     checkout scm
-                    container('go') {
-                        sh "make clean fmt build"
 
-                        echo "Now running tests..."
-                        sh "make testacc"
-                    }
+                    sh "make clean fmt build"
+
+                    echo "Now running tests..."
+                    sh "make testacc"
                 }
             }
         }
@@ -26,10 +23,9 @@ pipeline {
             }
             steps {
                 dir ('/home/jenkins/go/src/github.com/jenkins-x/terraform-provider-jx') {
-                    checkout scm
-                    container('go') {
-                        sh "make"
-                    }
+                    git "https://github.com/jenkins-x/terraform-provider-jx"
+
+                    sh "make"
                 }
             }
         }
