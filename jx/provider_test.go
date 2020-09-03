@@ -5,7 +5,6 @@ import (
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
-	"github.com/jenkins-x/jx/pkg/jx/cmd"
 )
 
 var testAccProviders map[string]terraform.ResourceProvider
@@ -39,10 +38,7 @@ func NewTestProvider() terraform.ResourceProvider {
 
 func testProviderConfigure(p *schema.Provider) schema.ConfigureFunc {
 	return func(d *schema.ResourceData) (interface{}, error) {
-		options := &TerraformOptions{
-			CommonOptions: cmd.CommonOptions{},
-		}
-		cmd.ConfigureTestOptions(&options.CommonOptions)
+		options := &TerraformOptions{}
 		return options, nil
 	}
 }
