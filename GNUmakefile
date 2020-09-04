@@ -1,14 +1,14 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 VERSION=$(shell ./scripts/git-version.sh)
-PKG_NAME=jx
+PKG_NAME=jx-admin
 WEBSITE_REPO=github.com/hashicorp/terraform-website
 export CGO_ENABLED:=0
 
 default: build
 
-build: fmtcheck
-	go install
+build: clean fmtcheck
+	go build -o bin/terraform-provider-jx-admin
 
 clean:
 	@rm -rf bin
