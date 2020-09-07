@@ -1,4 +1,4 @@
-package jx_admin
+package jxadmin
 
 func expandStringSlice(s []interface{}) []string {
 	result := make([]string, len(s), len(s))

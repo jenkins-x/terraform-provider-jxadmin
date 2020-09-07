@@ -1,4 +1,4 @@
-module github.com/jenkins-x/terraform-provider-jx
+module github.com/jenkins-x/terraform-provider-jxadmin
 
 go 1.12
 

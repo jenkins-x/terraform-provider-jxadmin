@@ -1,4 +1,4 @@
-package jx_admin
+package jxadmin
 
 import (
 	"bytes"
@@ -134,7 +134,7 @@ func Provider() terraform.ResourceProvider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"jx_admin_operator": resourceJxAdminOperator(),
+			"jxadmin_operator": resourceJxAdminOperator(),
 		},
 	}
 

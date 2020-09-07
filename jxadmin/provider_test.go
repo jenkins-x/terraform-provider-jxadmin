@@ -1,4 +1,4 @@
-package jx_admin
+package jxadmin
 
 import (
 	"testing"

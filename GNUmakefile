@@ -1,14 +1,14 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
 VERSION=$(shell ./scripts/git-version.sh)
-PKG_NAME=jx-admin
+PKG_NAME=jxadmin
 WEBSITE_REPO=github.com/hashicorp/terraform-website
 export CGO_ENABLED:=0
 
 default: build
 
 build: clean fmtcheck
-	go build -o bin/terraform-provider-jx-admin
+	go install
 
 clean:
 	@rm -rf bin
@@ -19,41 +19,41 @@ clean-release:
 release: \
 	clean \
 	clean-release \
-	_output/terraform-provider-jx_linux_amd64.zip \
-	_output/terraform-provider-jx_darwin_amd64.zip \
-	_output/terraform-provider-jx_freebsd_amd64.zip \
-	_output/terraform-provider-jx_freebsd_386.zip \
-	_output/terraform-provider-jx_freebsd_arm.zip \
-	_output/terraform-provider-jx_linux_amd64.zip \
-	_output/terraform-provider-jx_linux_386.zip \
-	_output/terraform-provider-jx_linux_arm.zip \
-	_output/terraform-provider-jx_openbsd_amd64.zip \
-	_output/terraform-provider-jx_openbsd_386.zip \
-	_output/terraform-provider-jx_solaris_amd64.zip \
-	_output/terraform-provider-jx_windows_amd64.zip \
-	_output/terraform-provider-jx_windows_386.zip
+	_output/terraform-provider-jxadmin_linux_amd64.zip \
+	_output/terraform-provider-jxadmin_darwin_amd64.zip \
+	_output/terraform-provider-jxadmin_freebsd_amd64.zip \
+	_output/terraform-provider-jxadmin_freebsd_386.zip \
+	_output/terraform-provider-jxadmin_freebsd_arm.zip \
+	_output/terraform-provider-jxadmin_linux_amd64.zip \
+	_output/terraform-provider-jxadmin_linux_386.zip \
+	_output/terraform-provider-jxadmin_linux_arm.zip \
+	_output/terraform-provider-jxadmin_openbsd_amd64.zip \
+	_output/terraform-provider-jxadmin_openbsd_386.zip \
+	_output/terraform-provider-jxadmin_solaris_amd64.zip \
+	_output/terraform-provider-jxadmin_windows_amd64.zip \
+	_output/terraform-provider-jxadmin_windows_386.zip
 
-bin/darwin_amd64/terraform-provider-jx:  GOARGS = GOOS=darwin GOARCH=amd64
-bin/freebsd_amd64/terraform-provider-jx:  GOARGS = GOOS=freebsd GOARCH=amd64
-bin/freebsd_386/terraform-provider-jx:  GOARGS = GOOS=freebsd GOARCH=386
-bin/freebsd_arm/terraform-provider-jx:  GOARGS = GOOS=freebsd GOARCH=arm
-bin/linux_amd64/terraform-provider-jx:  GOARGS = GOOS=linux GOARCH=amd64
-bin/linux_386/terraform-provider-jx:  GOARGS = GOOS=linux GOARCH=386
-bin/linux_arm/terraform-provider-jx:  GOARGS = GOOS=linux GOARCH=arm
-bin/openbsd_amd64/terraform-provider-jx:  GOARGS = GOOS=openbsd GOARCH=amd64
-bin/openbsd_386/terraform-provider-jx:  GOARGS = GOOS=openbsd GOARCH=386
-bin/solaris_amd64/terraform-provider-jx:  GOARGS = GOOS=solaris GOARCH=amd64
-bin/windows_amd64/terraform-provider-jx:  GOARGS = GOOS=windows GOARCH=amd64
-bin/windows_386/terraform-provider-jx:  GOARGS = GOOS=windows GOARCH=386
+bin/darwin_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=darwin GOARCH=amd64
+bin/freebsd_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=freebsd GOARCH=amd64
+bin/freebsd_386/terraform-provider-jxadmin:  GOARGS = GOOS=freebsd GOARCH=386
+bin/freebsd_arm/terraform-provider-jxadmin:  GOARGS = GOOS=freebsd GOARCH=arm
+bin/linux_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=linux GOARCH=amd64
+bin/linux_386/terraform-provider-jxadmin:  GOARGS = GOOS=linux GOARCH=386
+bin/linux_arm/terraform-provider-jxadmin:  GOARGS = GOOS=linux GOARCH=arm
+bin/openbsd_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=openbsd GOARCH=amd64
+bin/openbsd_386/terraform-provider-jxadmin:  GOARGS = GOOS=openbsd GOARCH=386
+bin/solaris_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=solaris GOARCH=amd64
+bin/windows_amd64/terraform-provider-jxadmin:  GOARGS = GOOS=windows GOARCH=amd64
+bin/windows_386/terraform-provider-jxadmin:  GOARGS = GOOS=windows GOARCH=386
 
-bin/%/terraform-provider-jx: clean
+bin/%/terraform-provider-jxadmin: clean
 	$(GOARGS) go build -o $@ -a .
 
-_output/terraform-provider-jx_%.zip: NAME=terraform-provider-jx_$(VERSION)_$*
-_output/terraform-provider-jx_%.zip: DEST=_output/$(NAME)
-_output/terraform-provider-jx_%.zip: bin/%/terraform-provider-jx
+_output/terraform-provider-jxadmin_%.zip: NAME=terraform-provider-jxadmin_$(VERSION)_$*
+_output/terraform-provider-jxadmin_%.zip: DEST=_output/$(NAME)
+_output/terraform-provider-jxadmin_%.zip: bin/%/terraform-provider-jxadmin
 	mkdir -p $(DEST)
-	cp bin/$*/terraform-provider-jx README.md CHANGELOG.md LICENSE $(DEST)
+	cp bin/$*/terraform-provider-jxadmin README.md CHANGELOG.md LICENSE $(DEST)
 	cd $(DEST) && zip -r ../$(NAME).zip .
 
 test: fmtcheck
