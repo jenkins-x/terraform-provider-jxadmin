@@ -12,6 +12,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	apimachineryschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -148,33 +149,6 @@ func Provider() terraform.ResourceProvider {
 		return providerConfigure(d, terraformVersion)
 	}
 	return p
-}
-
-func resourceJxAdminOperator() *schema.Resource {
-	return &schema.Resource{
-
-		//Create: resourceKubernetesConfigMapCreate,
-		//Read:   resourceKubernetesConfigMapRead,
-		//Exists: resourceKubernetesConfigMapExists,
-		//Update: resourceKubernetesConfigMapUpdate,
-		//Delete: resourceKubernetesConfigMapDelete,
-		//Importer: &schema.ResourceImporter{
-		//	State: schema.ImportStatePassthrough,
-		//},
-
-		Schema: map[string]*schema.Schema{
-			"bot_user": {
-				Type:        schema.TypeString,
-				Description: "Bot username used to authenticate with Git provider",
-				Required:    true,
-			},
-			"bot_token": {
-				Type:        schema.TypeString,
-				Description: "Bot token used to authenticate with Git provider",
-				Required:    true,
-			},
-		},
-	}
 }
 
 type KubeClientsets interface {

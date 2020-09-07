@@ -13,10 +13,11 @@ terraform {
   required_version = ">= 0.13"
 }
 
-provider "kubernetes" {
-  name = "my-jx-cluster"
-  endpoint = "https://127.0.0.1"
-  certificate = "some generated cert..."
+provider "jxadmin" {
+  config_path = "/tmp/bf8e5b76ce425c55d740fef2140d225a/config"
+//  name = "my-jx-cluster"
+//  endpoint = "https://127.0.0.1"
+//  certificate = "some generated cert..."
 }
 
 resource "jxadmin_operator" "foo" {

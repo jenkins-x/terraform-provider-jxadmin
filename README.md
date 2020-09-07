@@ -13,6 +13,8 @@ mkdir -p ~/.terraform.d/plugins/github.com/jenkins-x/jxadmin/9.9.9/darwin_amd64
 ln -s $GOPATH/bin/terraform-provider-jxadmin ~/.terraform.d/plugins/github.com/jenkins-x/jxadmin/9.9.9/darwin_amd64
 ``` 
 
+When developing locally override the location `terraform init` needs to use:
+
 ```
 vi ~/.terraformrc
 
@@ -55,4 +57,10 @@ Check that the plugin works by running a terraform plan
 ```
 $ terraform plan
 
+```
+
+Rapid development to build local plugin, terraform init, plan and apply with auto approve
+
+```
+$ make dev
 ```

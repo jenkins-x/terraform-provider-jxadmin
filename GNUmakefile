@@ -113,3 +113,8 @@ endif
 
 .PHONY: build test testacc vet fmt fmtcheck errcheck vendor-status test-compile release clean clean-release website website-test
 
+
+dev: build
+	terraform init
+	terraform plan
+	terraform apply -auto-approve
