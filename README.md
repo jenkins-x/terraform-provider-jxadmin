@@ -6,13 +6,26 @@ This is a work in progress and should definitely not be considered stable!
 ```
 mkdir -p $GOPATH/src/github.com/jenkins-x
 cd $GOPATH/src/github.com/jenkins-x
-git clone https://github.com/jenkins-x/terraform-provider-jx-admin
-cd terraform-provider-jx-admin
+git clone https://github.com/jenkins-x/terraform-provider-jxadmin
+cd terraform-provider-jxadmin
 make build
-mkdir -p ~/.terraform.d/plugins/darwin_amd64
-ln -s $GOPATH/bin/terraform-provider-jx-admin ~/.terraform.d/plugins/darwin_amd64/terraform-provider-jx-admin
+mkdir -p ~/.terraform.d/plugins/github.com/jenkins-x/jxadmin/9.9.9/darwin_amd64
+ln -s $GOPATH/bin/terraform-provider-jxadmin ~/.terraform.d/plugins/github.com/jenkins-x/jxadmin/9.9.9/darwin_amd64
 ``` 
 
+```
+vi ~/.terraformrc
+
+provider_installation {
+  filesystem_mirror {
+    path = "~/.terraform.d/plugins"
+    include = ["github.com/jenkins-x/*"]
+  }
+  direct {
+    exclude = ["github.com/jenkins-x/*"]
+  }
+}
+```
 To check that the provider is installed correctly
 
 ```

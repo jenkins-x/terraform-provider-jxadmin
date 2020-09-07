@@ -13,12 +13,13 @@ terraform {
   required_version = ">= 0.13"
 }
 
-provider "jxadmin" {
+provider "kubernetes" {
   name = "my-jx-cluster"
   endpoint = "https://127.0.0.1"
   certificate = "some generated cert..."
 }
 
 resource "jxadmin_operator" "foo" {
-  pipelineUser = "bot1"
+  bot_user = "bot1"
+  bot_token = "abc123"
 }
